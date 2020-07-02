@@ -219,12 +219,13 @@ public:
           hashMerkleRoot{block.hashMerkleRoot},
           nTime{block.nTime},
           nBits{block.nBits},
-          nNonce{block.nNonce},
-          prevoutStake{block.vtx[1]->vin[0].prevout},
-          nStakeTime{block.nTime}
+          nNonce{block.nNonce}
     {
-          if (IsProofOfStake())
+          if (IsProofOfStake()) {
               SetProofOfStake();
+              prevoutStake = block.vtx[1]->vin[0].prevout;
+              nStakeTime = block.nTime;
+          }
     }
 
     FlatFilePos GetBlockPos() const {
