@@ -10,6 +10,11 @@
 
 uint256 CBlockHeader::GetHash() const
 {
+    return argon2m_hash((char*)&(nVersion), (char*)&((&(nNonce))[1]));
+}
+
+uint256 CBlockHeader::GetLegacyHash() const
+{
     return SerializeHash(*this);
 }
 
