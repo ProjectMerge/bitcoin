@@ -76,6 +76,11 @@ public:
         return sizeof(data);
     }
 
+    uint64_t Get64(int pos = 0) const
+    {
+        return data[2 * pos] | (uint64_t)data[2 * pos + 1] << 32;
+    }
+
     uint64_t GetUint64(int pos) const
     {
         const uint8_t* ptr = data + pos * 8;

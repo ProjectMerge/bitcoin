@@ -8,7 +8,7 @@
 
 #include <arith_uint256.h>
 #include <consensus/params.h>
-#include <flatfile.h>
+#include <flatfile.h>                   //! CDiskBlockPos is here now
 #include <primitives/block.h>
 #include <tinyformat.h>
 #include <uint256.h>
@@ -20,6 +20,13 @@
  * current network-adjusted time before the block will be accepted.
  */
 static constexpr int64_t MAX_FUTURE_BLOCK_TIME = 2 * 60 * 60;
+
+/**
+ * Maximum amount of time that a block timestamp is allowed to exceed the
+ * current network-adjusted time before the block will be accepted on
+ * the PoS protocol.
+ */
+static constexpr int64_t MAX_FUTURE_BLOCK_TIME_POS = 3 * 60;
 
 /**
  * Timestamp window used as a grace period by code that compares external
@@ -161,6 +168,9 @@ public:
     //! (memory only) Total amount of work (expected number of hashes) in the chain up to and including this block
     arith_uint256 nChainWork{};
 
+    //! (memory only) Trust score of block chain
+    arith_uint256 bnChainTrust{};
+
     //! Number of transactions in this block.
     //! Note: in a potential headers-first mode, this number cannot be relied upon
     unsigned int nTx{0};
@@ -186,17 +196,35 @@ public:
     //! (memory only) Maximum nTime in the chain up to and including this block.
     unsigned int nTimeMax{0};
 
+    // ppcoin: PoS specific fields
+    uint64_t nStakeModifier{0};
+    COutPoint prevoutStake;
+    unsigned int nStakeTime{0};
+    uint256 hashProofOfStake{};
+    int64_t nMint{0};
+    int64_t nMoneySupply{0};
+    unsigned int nFlags{0};
+    enum {
+        BLOCK_PROOF_OF_STAKE = (1 << 0), // is proof-of-stake block
+        BLOCK_STAKE_ENTROPY = (1 << 1),  // entropy bit for stake modifier
+        BLOCK_STAKE_MODIFIER = (1 << 2), // regenerated stake modifier
+    };
+
     CBlockIndex()
     {
     }
 
-    explicit CBlockIndex(const CBlockHeader& block)
+    explicit CBlockIndex(const CBlock& block)
         : nVersion{block.nVersion},
           hashMerkleRoot{block.hashMerkleRoot},
           nTime{block.nTime},
           nBits{block.nBits},
-          nNonce{block.nNonce}
+          nNonce{block.nNonce},
+          prevoutStake{block.vtx[1]->vin[0].prevout},
+          nStakeTime{block.nTime}
     {
+          if (IsProofOfStake())
+              SetProofOfStake();
     }
 
     FlatFilePos GetBlockPos() const {
@@ -307,6 +335,42 @@ public:
     //! Efficiently find an ancestor of this block.
     CBlockIndex* GetAncestor(int height);
     const CBlockIndex* GetAncestor(int height) const;
+
+    //! ppcoin: PoS
+    bool IsProofOfWork() const {
+        return !(nFlags & BLOCK_PROOF_OF_STAKE);
+    }
+
+    bool IsProofOfStake() const {
+        return (nFlags & BLOCK_PROOF_OF_STAKE);
+    }
+
+    void SetProofOfStake() {
+        nFlags |= BLOCK_PROOF_OF_STAKE;
+    }
+
+    unsigned int GetStakeEntropyBit() const {
+        return ((GetBlockHash().Get64()) & 1);
+    }
+
+    bool SetStakeEntropyBit(unsigned int nEntropyBit) {
+        if (nEntropyBit > 1)
+            return false;
+        nFlags |= (nEntropyBit ? BLOCK_STAKE_ENTROPY : 0);
+        return true;
+    }
+
+    bool GeneratedStakeModifier() const {
+        return (nFlags & BLOCK_STAKE_MODIFIER);
+    }
+
+    void SetStakeModifier(uint64_t nModifier, bool fGeneratedStakeModifier) {
+        nStakeModifier = nModifier;
+        if (fGeneratedStakeModifier)
+            nFlags |= BLOCK_STAKE_MODIFIER;
+    }
+
+    arith_uint256 GetBlockTrust() const;
 };
 
 arith_uint256 GetBlockProof(const CBlockIndex& block);
@@ -321,9 +385,11 @@ class CDiskBlockIndex : public CBlockIndex
 {
 public:
     uint256 hashPrev;
+    uint256 hashNext;
 
     CDiskBlockIndex() {
         hashPrev = uint256();
+        hashNext = uint256();
     }
 
     explicit CDiskBlockIndex(const CBlockIndex* pindex) : CBlockIndex(*pindex) {
@@ -342,9 +408,20 @@ public:
         if (obj.nStatus & BLOCK_HAVE_DATA) READWRITE(VARINT(obj.nDataPos));
         if (obj.nStatus & BLOCK_HAVE_UNDO) READWRITE(VARINT(obj.nUndoPos));
 
+        // ppcoin: PoS
+        READWRITE(obj.nMint);
+        READWRITE(obj.nMoneySupply);
+        READWRITE(obj.nFlags);
+        READWRITE(obj.nStakeModifier);
+        if (obj.IsProofOfStake()) {
+            READWRITE(obj.prevoutStake);
+            READWRITE(obj.nStakeTime);
+        }
+
         // block header
         READWRITE(obj.nVersion);
         READWRITE(obj.hashPrev);
+        READWRITE(obj.hashNext);
         READWRITE(obj.hashMerkleRoot);
         READWRITE(obj.nTime);
         READWRITE(obj.nBits);
