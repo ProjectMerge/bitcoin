@@ -171,9 +171,11 @@ bool Consensus::CheckTxInputs(const CTransaction& tx, TxValidationState& state, 
         assert(!coin.IsSpent());
 
         // If prev is coinbase, check that it's matured
-        if (coin.IsCoinBase() && nSpendHeight - coin.nHeight < COINBASE_MATURITY) {
-            return state.Invalid(TxValidationResult::TX_PREMATURE_SPEND, "bad-txns-premature-spend-of-coinbase",
-                strprintf("tried to spend coinbase at depth %d", nSpendHeight - coin.nHeight));
+        if (coin.IsCoinBase() || coin.IsCoinStake()) {
+            if(nSpendHeight - coin.nHeight < COINBASE_MATURITY) {
+                return state.Invalid(TxValidationResult::TX_PREMATURE_SPEND, "bad-txns-premature-spend-of-coinbase",
+                        strprintf("tried to spend coinbase at depth %d", nSpendHeight - coin.nHeight));
+            }
         }
 
         // Check for negative or overflow input values
@@ -184,17 +186,20 @@ bool Consensus::CheckTxInputs(const CTransaction& tx, TxValidationState& state, 
     }
 
     const CAmount value_out = tx.GetValueOut();
-    if (nValueIn < value_out) {
-        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-in-belowout",
-            strprintf("value in (%s) < value out (%s)", FormatMoney(nValueIn), FormatMoney(value_out)));
+    if (!tx.IsCoinStake()) {
+        if (nValueIn < value_out) {
+            return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-in-belowout",
+                strprintf("value in (%s) < value out (%s)", FormatMoney(nValueIn), FormatMoney(value_out)));
+        }
+
+        // Tally transaction fees
+        const CAmount txfee_aux = nValueIn - value_out;
+        if (!MoneyRange(txfee_aux)) {
+            return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-fee-outofrange");
+        }
+    
+        txfee = txfee_aux;
     }
 
-    // Tally transaction fees
-    const CAmount txfee_aux = nValueIn - value_out;
-    if (!MoneyRange(txfee_aux)) {
-        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-fee-outofrange");
-    }
-
-    txfee = txfee_aux;
     return true;
 }

@@ -58,6 +58,8 @@
 #define MICRO 0.000001
 #define MILLI 0.001
 
+static std::map<uint256, uint256> mapProofOfStake;
+
 bool CBlockIndexWorkComparator::operator()(const CBlockIndex *pa, const CBlockIndex *pb) const {
     // First sort by most total work, ...
     if (pa->nChainWork > pb->nChainWork) return false;
@@ -104,6 +106,7 @@ CChain& ChainActive() {
  */
 RecursiveMutex cs_main;
 
+std::map<COutPoint, int> mapStakeSpent;
 CBlockIndex *pindexBestHeader = nullptr;
 Mutex g_best_block_mutex;
 std::condition_variable g_best_block_cv;
@@ -362,7 +365,7 @@ static void UpdateMempoolForReorg(DisconnectedBlockTransactions& disconnectpool,
     while (it != disconnectpool.queuedTx.get<insertion_order>().rend()) {
         // ignore validation errors in resurrected transactions
         TxValidationState stateDummy;
-        if (!fAddToMempool || (*it)->IsCoinBase() ||
+        if (!fAddToMempool || (*it)->IsCoinBase() || (*it)->IsCoinStake() ||
             !AcceptToMemoryPool(mempool, stateDummy, *it,
                                 nullptr /* plTxnReplaced */, true /* bypass_limits */, 0 /* nAbsurdFee */)) {
             // If the transaction doesn't make it in to the mempool, remove any
@@ -398,7 +401,7 @@ static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, TxValidationS
     // and when we actually call through to CheckInputScripts
     LOCK(pool.cs);
 
-    assert(!tx.IsCoinBase());
+    assert(!tx.IsCoinBase() && !tx.IsCoinStake());
     for (const CTxIn& txin : tx.vin) {
         const Coin& coin = view.AccessCoin(txin.prevout);
 
@@ -553,9 +556,12 @@ bool MemPoolAccept::PreChecks(ATMPArgs& args, Workspace& ws)
     if (!CheckTransaction(tx, state))
         return false; // state filled in by CheckTransaction
 
-    // Coinbase is only valid in a block, not as a loose transaction
+    // Coinbase/stake is only valid in a block, not as a loose transaction
     if (tx.IsCoinBase())
-        return state.Invalid(TxValidationResult::TX_CONSENSUS, "coinbase");
+        return state.Invalid(TxValidationResult::TX_NOT_STANDARD, "coinbase as individual tx");
+
+    if (tx.IsCoinStake())
+        return state.Invalid(TxValidationResult::TX_NOT_STANDARD, "coinstake as individual tx");
 
     // Rather not work on nonstandard transactions (unless -testnet/-regtest)
     std::string reason;
@@ -683,7 +689,7 @@ bool MemPoolAccept::PreChecks(ATMPArgs& args, Workspace& ws)
     bool fSpendsCoinbase = false;
     for (const CTxIn &txin : tx.vin) {
         const Coin &coin = m_view.AccessCoin(txin.prevout);
-        if (coin.IsCoinBase()) {
+        if (coin.IsCoinBase() || coin.IsCoinStake()) {
             fSpendsCoinbase = true;
             break;
         }
@@ -1491,7 +1497,7 @@ void InitScriptExecutionCache() {
  */
 bool CheckInputScripts(const CTransaction& tx, TxValidationState &state, const CCoinsViewCache &inputs, unsigned int flags, bool cacheSigStore, bool cacheFullScriptStore, PrecomputedTransactionData& txdata, std::vector<CScriptCheck> *pvChecks) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 {
-    if (tx.IsCoinBase()) return true;
+    if (tx.IsCoinBase() || tx.IsCoinStake()) return true;
 
     if (pvChecks) {
         pvChecks->reserve(tx.vin.size());
@@ -1664,6 +1670,7 @@ int ApplyTxInUndo(Coin&& undo, CCoinsViewCache& view, const COutPoint& out)
         if (!alternate.IsSpent()) {
             undo.nHeight = alternate.nHeight;
             undo.fCoinBase = alternate.fCoinBase;
+            undo.fCoinStake = alternate.fCoinStake;
         } else {
             return DISCONNECT_FAILED; // adding output for transaction without known metadata
         }
@@ -1699,6 +1706,7 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
         const CTransaction &tx = *(block.vtx[i]);
         uint256 hash = tx.GetHash();
         bool is_coinbase = tx.IsCoinBase();
+        bool is_coinstake = tx.IsCoinStake();
 
         // Check that all outputs are available and match the outputs in the block itself
         // exactly.
@@ -1707,7 +1715,7 @@ DisconnectResult CChainState::DisconnectBlock(const CBlock& block, const CBlockI
                 COutPoint out(hash, o);
                 Coin coin;
                 bool is_spent = view.SpendCoin(out, &coin);
-                if (!is_spent || tx.vout[o] != coin.out || pindex->nHeight != coin.nHeight || is_coinbase != coin.fCoinBase) {
+                if (!is_spent || tx.vout[o] != coin.out || pindex->nHeight != coin.nHeight || is_coinbase != coin.fCoinBase || is_coinstake != coin.fCoinStake) {
                     fClean = false; // transaction output mismatch
                 }
             }
@@ -2080,6 +2088,8 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
     std::vector<int> prevheights;
     CAmount nFees = 0;
     int nInputs = 0;
+    CAmount nValueIn = 0;
+    CAmount nValueOut = 0;
     int64_t nSigOpsCost = 0;
     blockundo.vtxundo.reserve(block.vtx.size() - 1);
     std::vector<PrecomputedTransactionData> txdata;
@@ -2100,7 +2110,9 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
                             tx_state.GetRejectReason(), tx_state.GetDebugMessage());
                 return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), state.ToString());
             }
-            nFees += txfee;
+
+            if (!tx.IsCoinStake())
+                nFees += txfee;
             if (!MoneyRange(nFees)) {
                 LogPrintf("ERROR: %s: accumulated fee in the block out of range.\n", __func__);
                 return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-txns-accumulated-fee-outofrange");
@@ -2133,6 +2145,10 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
         txdata.emplace_back(tx);
         if (!tx.IsCoinBase())
         {
+            if (!tx.IsCoinStake())
+                nFees += view.GetValueIn(tx) - tx.GetValueOut();
+            nValueIn += view.GetValueIn(tx);
+
             std::vector<CScriptCheck> vChecks;
             bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
             TxValidationState tx_state;
@@ -2145,7 +2161,7 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
             }
             control.Add(vChecks);
         }
-
+        nValueOut += tx.GetValueOut();
         CTxUndo undoDummy;
         if (i > 0) {
             blockundo.vtxundo.push_back(CTxUndo());
@@ -3268,8 +3284,10 @@ static bool FindUndoPos(BlockValidationState &state, int nFile, FlatFilePos &pos
 
 static bool CheckBlockHeader(const CBlockHeader& block, BlockValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW = true)
 {
+    bool isProofOfStake = block.nNonce == 0;
+
     // Check proof of work matches claimed amount
-    if (fCheckPOW && !CheckProofOfWork(block.GetHash(), block.nBits, consensusParams))
+    if (fCheckPOW && !isProofOfStake && !CheckProofOfWork(block.GetHash(), block.nBits, consensusParams))
         return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "high-hash", "proof of work failed");
 
     return true;
@@ -3284,7 +3302,7 @@ bool CheckBlock(const CBlock& block, BlockValidationState& state, const Consensu
 
     // Check that the header is valid (particularly PoW).  This is mostly
     // redundant with the call in AcceptBlockHeader.
-    if (!CheckBlockHeader(block, state, consensusParams, fCheckPOW))
+    if (!CheckBlockHeader(block, state, consensusParams, fCheckPOW && block.IsProofOfWork()))
         return false;
 
     // Check the merkle root.
@@ -3317,6 +3335,22 @@ bool CheckBlock(const CBlock& block, BlockValidationState& state, const Consensu
     for (unsigned int i = 1; i < block.vtx.size(); i++)
         if (block.vtx[i]->IsCoinBase())
             return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cb-multiple", "more than one coinbase");
+
+    // Proof of stake checks
+    if (block.IsProofOfStake()) {
+       if (block.vtx.empty() || !block.vtx[1]->IsCoinStake())
+           return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "stake-tx-missing", "second tx is not coinstake");
+       for (unsigned int i = 2; i < block.vtx.size(); i++)
+           if (block.vtx[i]->IsCoinStake())
+               return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "stake-tx-multiple", "more than one coinstake");
+       // check block timestamp (PoS)
+       if (block.GetBlockTime() > GetAdjustedTime() + MAX_FUTURE_BLOCK_TIME_POS)
+           return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cb-time", "coinstake timestamp is too early");
+    } else {
+        // check block timestamp (PoW)
+        if (block.GetBlockTime() > GetAdjustedTime() + MAX_FUTURE_BLOCK_TIME)
+            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cb-time", "coinbase timestamp is too early");
+    }
 
     // Check transactions
     // Must check for duplicate inputs (see CVE-2018-17144)
