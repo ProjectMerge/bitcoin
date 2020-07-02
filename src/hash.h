@@ -6,6 +6,7 @@
 #ifndef BITCOIN_HASH_H
 #define BITCOIN_HASH_H
 
+#include <crypto/argon2m/argon2/argon2.h>
 #include <crypto/common.h>
 #include <crypto/ripemd160.h>
 #include <crypto/sha256.h>
@@ -198,6 +199,37 @@ uint256 SerializeHash(const T& obj, int nType=SER_GETHASH, int nVersion=PROTOCOL
     CHashWriter ss(nType, nVersion);
     ss << obj;
     return ss.GetHash();
+}
+
+//! argon2m hashing algorithm
+static const unsigned int DEFAULT_ARGON2_FLAG = 2;
+
+template <typename T1>
+inline uint256 argon2m_hash(const T1 pbegin, const T1 pend)
+{
+    uint256 hash[1];
+    argon2_context context;
+    context.out = (uint8_t*)static_cast<void*>(&hash[0]);
+    context.outlen = 32;
+    context.pwd = (uint8_t*)static_cast<const void*>(&pbegin[0]);
+    context.pwdlen = 80;
+    context.salt = (uint8_t*)static_cast<const void*>(&pbegin[0]);
+    context.saltlen = 80;
+    context.secret = nullptr;
+    context.secretlen = 0;
+    context.ad = nullptr;
+    context.adlen = 0;
+    context.allocate_cbk = nullptr;
+    context.free_cbk = nullptr;
+    context.flags = DEFAULT_ARGON2_FLAG;
+    context.m_cost = 2;
+    context.lanes = 1;
+    context.threads = 1;
+    context.t_cost = 1;
+    context.version = ARGON2_VERSION_13;
+    argon2_ctx( &context, Argon2_id );
+
+    return hash[0];
 }
 
 unsigned int MurmurHash3(unsigned int nHashSeed, const std::vector<unsigned char>& vDataToHash);
