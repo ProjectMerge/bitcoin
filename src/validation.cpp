@@ -562,7 +562,6 @@ bool MemPoolAccept::PreChecks(ATMPArgs& args, Workspace& ws)
     // Coinbase/stake is only valid in a block, not as a loose transaction
     if (tx.IsCoinBase())
         return state.Invalid(TxValidationResult::TX_NOT_STANDARD, "coinbase as individual tx");
-
     if (tx.IsCoinStake())
         return state.Invalid(TxValidationResult::TX_NOT_STANDARD, "coinstake as individual tx");
 
@@ -1225,17 +1224,148 @@ bool ReadRawBlockFromDisk(std::vector<uint8_t>& block, const CBlockIndex* pindex
     return ReadRawBlockFromDisk(block, block_pos, message_start);
 }
 
-CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
+CAmount GetBlockSubsidy(int nPrevHeight, const Consensus::Params& consensusParams)
 {
-    int halvings = nHeight / consensusParams.nSubsidyHalvingInterval;
-    // Force block reward to zero when right shift is undefined.
-    if (halvings >= 64)
-        return 0;
+    if (Params().NetworkIDString() == CBaseChainParams::MAIN) {
+      if (nPrevHeight == 0) {
+        return 33000000 * COIN;
+      } else if (nPrevHeight > 0 && nPrevHeight <= 43201) {
+        return 15 * COIN;
+      } else if (nPrevHeight > 43201 && nPrevHeight <= 57601) {
+        return 10 * COIN;
+      } else if (nPrevHeight > 57601 && nPrevHeight <= 72001) {
+        return 20 * COIN;
+      } else if (nPrevHeight > 72001 && nPrevHeight <= 86401) {
+        return 30 * COIN;
+      } else if (nPrevHeight > 86401 && nPrevHeight <= 100801) {
+        return 40 * COIN;
+      } else if (nPrevHeight > 100801 && nPrevHeight <= 144001) {
+        return 50 * COIN;
+      } else if (nPrevHeight > 144001 && nPrevHeight <= 273601) {
+        return 55 * COIN;
+      } else if (nPrevHeight > 273601 && nPrevHeight <= 316801) {
+        return 50 * COIN;
+      } else if (nPrevHeight > 316801 && nPrevHeight <= 360001) {
+        return 45 * COIN;
+      } else if (nPrevHeight > 360001 && nPrevHeight <= 403201) {
+        return 40 * COIN;
+      } else if (nPrevHeight > 403201 && nPrevHeight <= 446401) {
+        return 35 * COIN;
+      } else if (nPrevHeight > 446401 && nPrevHeight <= 489601) {
+        return 30 * COIN;
+      } else if (nPrevHeight > 489601 && nPrevHeight <= 532802) {
+        return 25 * COIN;
+      } else if (nPrevHeight > 532802 && nPrevHeight <= 576003) {
+        return 24 * COIN;
+      } else if (nPrevHeight > 576003 && nPrevHeight <= 662404) {
+        return 23 * COIN;
+      } else if (nPrevHeight > 662404 && nPrevHeight <= 748805) {
+        return 22 * COIN;
+      } else if (nPrevHeight > 748805 && nPrevHeight <= 835206) {
+        return 21 * COIN;
+      } else if (nPrevHeight > 835206 && nPrevHeight <= 969127) {
+        return 20 * COIN;
+      } else if (nPrevHeight > 969127 && nPrevHeight <= 1098728) {
+        return 19 * COIN;
+      } else if (nPrevHeight > 1098728 && nPrevHeight <= 1228329) {
+        return 18 * COIN;
+      } else if (nPrevHeight > 1228329 && nPrevHeight <= 1357930) {
+        return 17 * COIN;
+      } else if (nPrevHeight > 1357930 && nPrevHeight <= 1487531) {
+        return 16 * COIN;
+      } else if (nPrevHeight > 1487531 && nPrevHeight <= 1660332) {
+        return 15 * COIN;
+      } else if (nPrevHeight > 1660332 && nPrevHeight <= 1833133) {
+        return 14 * COIN;
+      } else if (nPrevHeight > 1833133 && nPrevHeight <= 2049134) {
+        return 13 * COIN;
+      } else if (nPrevHeight > 2049134 && nPrevHeight <= 2265135) {
+        return 12 * COIN;
+      } else if (nPrevHeight > 2265135 && nPrevHeight <= 2481136) {
+        return 11 * COIN;
+      } else if (nPrevHeight > 2481136 && nPrevHeight <= 2697137) {
+        return 10 * COIN;
+      } else if (nPrevHeight > 2697137 && nPrevHeight <= 2956338) {
+        return 9 * COIN;
+      } else if (nPrevHeight > 2956338 && nPrevHeight <= 3215539) {
+        return 8 * COIN;
+      } else if (nPrevHeight > 3215539 && nPrevHeight <= 3474740) {
+        return 7 * COIN;
+      } else if (nPrevHeight > 3474740 && nPrevHeight <= 3733941) {
+        return 6 * COIN;
+      } else if (nPrevHeight > 3733941 && nPrevHeight <= 3993142) {
+        return 5 * COIN;
+      } else if (nPrevHeight > 3993142 && nPrevHeight <= 4338743) {
+        return 4 * COIN;
+      } else if (nPrevHeight > 4338743 && nPrevHeight <= 4684344) {
+        return 3 * COIN;
+      } else if (nPrevHeight > 4684344 && nPrevHeight <= 5029945) {
+        return 2 * COIN;
+      } else if (nPrevHeight > 5029945 && nPrevHeight <= 5314421) {
+        return 1 * COIN;
+      } else if (nPrevHeight > 5314421 && nPrevHeight <= 9999999) {
+        return 0 * COIN;
+      }
+    } else {
+      if (nPrevHeight == 0) {
+        return 33000000 * COIN;
+      } else if (nPrevHeight > 1 && nPrevHeight <= 500) {
+        return 15 * COIN;
+      } else if (nPrevHeight > 500 && nPrevHeight <= 999999) {
+        return 30 * COIN;
+      }
+    }
+    return 0;
+}
 
-    CAmount nSubsidy = 50 * COIN;
-    // Subsidy is cut in half every 210,000 blocks which will occur approximately every 4 years.
-    nSubsidy >>= halvings;
-    return nSubsidy;
+CAmount GetMasternodePayment(int nHeight, CAmount blockValue)
+{
+    if (Params().NetworkIDString() == CBaseChainParams::MAIN) {
+        if (nHeight >= 0 && nHeight <= 43201) { return 0 * COIN;
+        } else if (nHeight > 43201 && nHeight <= 57601) { return 0 * COIN;
+        } else if (nHeight > 57601 && nHeight <= 72001) { return 10.0 * COIN;
+        } else if (nHeight > 72001 && nHeight <= 86401) { return 15.0 * COIN;
+        } else if (nHeight > 86401 && nHeight <= 100801) { return 20.0 * COIN;
+        } else if (nHeight > 100801 && nHeight <= 144001) { return 25.0 * COIN;
+        } else if (nHeight > 144001 && nHeight <= 273601) { return 27.5 * COIN;
+        } else if (nHeight > 273601 && nHeight <= 316801) { return 25.0 * COIN;
+        } else if (nHeight > 316801 && nHeight <= 360001) { return 22.5 * COIN;
+        } else if (nHeight > 360001 && nHeight <= 403201) { return 20.0 * COIN;
+        } else if (nHeight > 403201 && nHeight <= 446401) { return 17.5 * COIN;
+        } else if (nHeight > 446401 && nHeight <= 489601) { return 15.0 * COIN;
+        } else if (nHeight > 489601 && nHeight <= 532802) { return 12.5 * COIN;
+        } else if (nHeight > 532802 && nHeight <= 576003) { return 12.0 * COIN;
+        } else if (nHeight > 576003 && nHeight <= 662404) { return 11.5 * COIN;
+        } else if (nHeight > 662404 && nHeight <= 748805) { return 11.0 * COIN;
+        } else if (nHeight > 748805 && nHeight <= 835206) { return 10.5 * COIN;
+        } else if (nHeight > 835206 && nHeight <= 969127) { return 10.0 * COIN;
+        } else if (nHeight > 969127 && nHeight <= 1098728) { return 9.5 * COIN;
+        } else if (nHeight > 1098728 && nHeight <= 1228329) { return 9.0 * COIN;
+        } else if (nHeight > 1228329 && nHeight <= 1357930) { return 8.5 * COIN;
+        } else if (nHeight > 1357930 && nHeight <= 1487531) { return 8.0 * COIN;
+        } else if (nHeight > 1487531 && nHeight <= 1660332) { return 7.5 * COIN;
+        } else if (nHeight > 1660332 && nHeight <= 1833133) { return 7.0 * COIN;
+        } else if (nHeight > 1833133 && nHeight <= 2049134) { return 6.5 * COIN;
+        } else if (nHeight > 2049134 && nHeight <= 2265135) { return 6.0 * COIN;
+        } else if (nHeight > 2265135 && nHeight <= 2481136) { return 5.5 * COIN;
+        } else if (nHeight > 2481136 && nHeight <= 2697137) { return 5.0 * COIN;
+        } else if (nHeight > 2697137 && nHeight <= 2956338) { return 4.5 * COIN;
+        } else if (nHeight > 2956338 && nHeight <= 3215539) { return 4.0 * COIN;
+        } else if (nHeight > 3215539 && nHeight <= 3474740) { return 3.5 * COIN;
+        } else if (nHeight > 3474740 && nHeight <= 3733941) { return 3.0 * COIN;
+        } else if (nHeight > 3733941 && nHeight <= 3993142) { return 2.5 * COIN;
+        } else if (nHeight > 3993142 && nHeight <= 4338743) { return 2.0 * COIN;
+        } else if (nHeight > 4338743 && nHeight <= 4684344) { return 1.5 * COIN;
+        } else if (nHeight > 4684344 && nHeight <= 5029945) { return 1.0 * COIN;
+        } else if (nHeight > 5029945 && nHeight <= 5314421) { return 0.5 * COIN;
+        } else if (nHeight > 5314421 && nHeight <= 9999999) { return 0.0 * COIN;
+      }
+    } else {
+      if (nHeight < 501) { return 0 * COIN;
+        } else { return 15 * COIN;
+      }
+    }
+    return 0;
 }
 
 CoinsViews::CoinsViews(
@@ -2202,7 +2332,7 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
     LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs (%.2fms/blk)]\n", (unsigned)block.vtx.size(), MILLI * (nTime3 - nTime2), MILLI * (nTime3 - nTime2) / block.vtx.size(), nInputs <= 1 ? 0 : MILLI * (nTime3 - nTime2) / (nInputs-1), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
 
-    CAmount blockReward = nFees + GetBlockSubsidy(pindex->nHeight, chainparams.GetConsensus());
+    CAmount blockReward = nFees + GetBlockSubsidy(pindex->nHeight-1, chainparams.GetConsensus());
     if (block.vtx[0]->GetValueOut() > blockReward) {
         LogPrintf("ERROR: ConnectBlock(): coinbase pays too much (actual=%d vs limit=%d)\n", block.vtx[0]->GetValueOut(), blockReward);
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cb-amount");
@@ -2212,6 +2342,7 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
         LogPrintf("ERROR: %s: CheckQueue failed\n", __func__);
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "block-validation-failed");
     }
+
     int64_t nTime4 = GetTimeMicros(); nTimeVerify += nTime4 - nTime2;
     LogPrint(BCLog::BENCH, "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs (%.2fms/blk)]\n", nInputs - 1, MILLI * (nTime4 - nTime2), nInputs <= 1 ? 0 : MILLI * (nTime4 - nTime2) / (nInputs-1), nTimeVerify * MICRO, nTimeVerify * MILLI / nBlocksTotal);
 
@@ -2626,7 +2757,6 @@ bool CChainState::ConnectTip(BlockValidationState& state, const CChainParams& ch
             return error("%s: ConnectBlock %s failed, %s", __func__, pindexNew->GetBlockHash().ToString(), state.ToString());
         }
         nTime3 = GetTimeMicros(); nTimeConnectTotal += nTime3 - nTime2;
-        assert(nBlocksTotal > 0);
         LogPrint(BCLog::BENCH, "  - Connect total: %.2fms [%.2fs (%.2fms/blk)]\n", (nTime3 - nTime2) * MILLI, nTimeConnectTotal * MICRO, nTimeConnectTotal * MILLI / nBlocksTotal);
         bool flushed = view.Flush();
         assert(flushed);
@@ -3552,11 +3682,11 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
 
     // Reject outdated version blocks when 95% (75% on testnet) of the network has upgraded:
     // check for version 2, 3 and 4 upgrades
-    if((block.nVersion < 2 && nHeight >= consensusParams.BIP34Height) ||
-       (block.nVersion < 3 && nHeight >= consensusParams.BIP66Height) ||
-       (block.nVersion < 4 && nHeight >= consensusParams.BIP65Height))
-            return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, strprintf("bad-version(0x%08x)", block.nVersion),
-                                 strprintf("rejected nVersion=0x%08x block", block.nVersion));
+    //if((block.nVersion < 2 && nHeight >= consensusParams.BIP34Height) ||
+    //   (block.nVersion < 3 && nHeight >= consensusParams.BIP66Height) ||
+    //   (block.nVersion < 4 && nHeight >= consensusParams.BIP65Height))
+    //            return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, strprintf("bad-version(0x%08x)", block.nVersion),
+    //                                           strprintf("rejected nVersion=0x%08x block", block.nVersion));
 
     return true;
 }
