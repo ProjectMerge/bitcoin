@@ -17,6 +17,7 @@
 #include <chainparams.h>
 #include <compat/sanity.h>
 #include <consensus/validation.h>
+#include <flat-database.h>
 #include <fs.h>
 #include <httprpc.h>
 #include <httpserver.h>
@@ -52,9 +53,19 @@
 #include <util/system.h>
 #include <util/threadnames.h>
 #include <util/translation.h>
+#include <util/validation.h>
 #include <validation.h>
 #include <hash.h>
+#include <wallet/wallet.h>
 
+#include <masternode/activemasternode.h>
+#include <masternode/masternode-payments.h>
+#include <masternode/masternode-sync.h>
+#include <masternode/masternode.h>
+#include <masternode/masternodeman.h>
+#include <masternode/masternodeconfig.h>
+#include <masternode/masternode-helpers.h>
+#include <masternode/spork.h>
 
 #include <validationinterface.h>
 #include <walletinitinterface.h>
@@ -70,6 +81,7 @@
 #include <sys/stat.h>
 #endif
 
+#include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/algorithm/string/split.hpp>
@@ -229,6 +241,9 @@ void Shutdown(NodeContext& node)
     if (::mempool.IsLoaded() && gArgs.GetArg("-persistmempool", DEFAULT_PERSIST_MEMPOOL)) {
         DumpMempool(::mempool);
     }
+
+    DumpMasternodes();
+    DumpMasternodePayments();
 
     if (fFeeEstimatesInitialized)
     {
@@ -875,7 +890,7 @@ namespace { // Variables internal to initialization process only
 int nMaxConnections;
 int nUserMaxConnections;
 int nFD;
-ServiceFlags nLocalServices = ServiceFlags(NODE_NETWORK | NODE_NETWORK_LIMITED);
+ServiceFlags nLocalServices = ServiceFlags(NODE_NETWORK);
 int64_t peer_connect_timeout;
 std::set<BlockFilterType> g_enabled_filter_types;
 
@@ -1263,6 +1278,11 @@ bool AppInitMain(NodeContext& node)
 
     InitSignatureCache();
     InitScriptExecutionCache();
+
+    if (gArgs.IsArgSet("-sporkkey")) {
+        if (!sporkManager.SetPrivKey(gArgs.GetArg("-sporkkey", "")))
+            return InitError("Unable to sign spork message, wrong key?");
+    }
 
     int script_threads = gArgs.GetArg("-par", DEFAULT_SCRIPTCHECK_THREADS);
     if (script_threads <= 0) {
@@ -1793,6 +1813,94 @@ bool AppInitMain(NodeContext& node)
 
     // ********************************************************* Step 12: start node
 
+    boost::filesystem::path pathDB = GetDataDir();
+    std::string strDBName;
+
+    uiInterface.InitMessage("Loading masternode cache...");
+    CMasternodeDB mndb;
+    CMasternodeDB::ReadResult readResult = mndb.Read(mnodeman);
+    if (readResult == CMasternodeDB::FileError)
+        LogPrintf("Missing masternode cache file - mncache.dat, will try to recreate\n");
+    else if (readResult != CMasternodeDB::Ok) {
+        LogPrintf("Error reading mncache.dat: ");
+        if (readResult == CMasternodeDB::IncorrectFormat)
+            LogPrintf("magic is ok but data has invalid format, will try to recreate\n");
+        else
+            LogPrintf("file format is unknown or invalid, please fix it manually\n");
+    }
+
+    if(mnodeman.size()) {
+        uiInterface.InitMessage("Loading masternode payment cache...");
+        CMasternodePaymentDB mnpayments;
+        CMasternodePaymentDB::ReadResult readResult = mnpayments.Read(masternodePayments);
+        if (readResult == CMasternodePaymentDB::FileError)
+            LogPrintf("Missing masternode payment cache - mnpayments.dat, will try to recreate\n");
+        else if (readResult != CMasternodePaymentDB::Ok) {
+            LogPrintf("Error reading mnpayments.dat: ");
+            if (readResult == CMasternodePaymentDB::IncorrectFormat)
+                LogPrintf("magic is ok but data has invalid format, will try to recreate\n");
+            else
+                LogPrintf("file format is unknown or invalid, please fix it manually\n");
+        }
+    } else {
+        uiInterface.InitMessage("Masternode cache is empty, skipping payments cache...");
+    }
+
+    // ********************************************************* Step 11b: setup Masternode
+
+    fMasternode = gArgs.GetBoolArg("-masternode", false);
+    strMasterNodeAddr = gArgs.GetArg("-masternodeaddr", "");
+
+    if(fMasternode)
+    {
+        LogPrint(BCLog::MASTERNODE, "MASTERNODE:");
+
+        if (!strMasterNodeAddr.empty()) {
+            CService addrTest = CService(strMasterNodeAddr);
+            if (!addrTest.IsValid()) {
+                return InitError("Invalid -masternodeaddr address: " + strMasterNodeAddr);
+            }
+        }
+
+        std::string strMasterNodePrivKey = gArgs.GetArg("-masternodeprivkey", "");
+        if(!strMasterNodePrivKey.empty())
+        {
+            CKey key;
+            CPubKey pubkey;
+            if(!masternodeSigner.GetKeysFromSecret(strMasterNodePrivKey, key, pubkey))
+               return InitError("Invalid masternodeprivkey. Please see documenation.");
+            LogPrint(BCLog::MASTERNODE, "  pubKeyMasternode: %s", activeMasternode.pubKeyMasternode.GetID().ToString());
+        } else {
+            return InitError("You must specify a masternodeprivkey in the configuration. Please see documentation for help.");
+        }
+
+    }
+
+    auto m_wallet = GetMainWallet();
+    LogPrintf("Using masternode config file %s\n", GetMasternodeConfigFile().string());
+
+    if(m_wallet && gArgs.GetBoolArg("-mnconflock", true) && (masternodeConfig.getCount() > 0))
+    {
+        LOCK(m_wallet->cs_wallet);
+        LogPrint(BCLog::MASTERNODE, "Locking Masternodes:");
+        uint256 mnTxHash;
+        int outputIndex;
+        for (CMasternodeConfig::CMasternodeEntry mne : masternodeConfig.getEntries()) {
+            mnTxHash.SetHex(mne.getTxHash());
+            outputIndex = boost::lexical_cast<unsigned int>(mne.getOutputIndex());
+            COutPoint outpoint = COutPoint(mnTxHash, outputIndex);
+            if(m_wallet->IsMine(CTxIn(outpoint)) != ISMINE_SPENDABLE) {
+                LogPrint(BCLog::MASTERNODE, "  %s %s - IS NOT SPENDABLE, was not locked\n", mne.getTxHash(), mne.getOutputIndex());
+                continue;
+            }
+            m_wallet->LockCoin(outpoint);
+            LogPrint(BCLog::MASTERNODE, "  %s %s - locked successfully\n", mne.getTxHash(), mne.getOutputIndex());
+        }
+    }
+
+    // ********************************************************* Step 11c: update block tip in Dash modules
+
+    threadGroup.create_thread(std::bind(&ThreadCheckMasternodes, node.connman.get()));
     int chain_active_height;
 
     //// debug print

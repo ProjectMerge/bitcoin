@@ -114,3 +114,8 @@ int64_t ParseISO8601DateTime(const std::string& str)
         return 0;
     return (ptime - epoch).total_seconds();
 }
+
+void MilliSleep(int64_t n)
+{
+    UninterruptibleSleep(std::chrono::milliseconds{n});
+}

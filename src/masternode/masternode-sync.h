@@ -67,18 +67,18 @@ public:
     void AddedMasternodeList(uint256 hash);
     void AddedMasternodeWinner(uint256 hash);
     void AddedBudgetItem(uint256 hash);
-    void GetNextAsset();
+    void GetNextAsset(CConnman& connman);
     std::string GetSyncStatus();
     void ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv);
     bool IsBudgetFinEmpty();
     bool IsBudgetPropEmpty();
 
     void Reset();
-    void Process();
+    void Process(CConnman& connman);
     bool IsSynced();
     bool IsMasternodeListSynced();
     bool IsBlockchainSynced();
-    void ClearFulfilledRequest();
+    void ClearFulfilledRequest(CConnman& connman);
 };
 
 #endif

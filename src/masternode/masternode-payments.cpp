@@ -162,24 +162,24 @@ std::string CMasternodePaymentWinner::GetStrMessage() const
     return vinMasternode.prevout.ToStringShort() + std::to_string(nBlockHeight) + payee.ToString();
 }
 
-bool CMasternodePaymentWinner::IsValid(CNode* pnode, std::string& strError)
+bool CMasternodePaymentWinner::IsValid(CNode* pnode, std::string& strError, CConnman& connman)
 {
     CMasternode* pmn = mnodeman.Find(vinMasternode);
 
     if (!pmn) {
         strError = strprintf("Unknown Masternode %s", vinMasternode.prevout.hash.ToString());
         LogPrint(BCLog::MASTERNODE, "CMasternodePaymentWinner::IsValid - %s\n", strError);
-        mnodeman.AskForMN(pnode, vinMasternode);
+        mnodeman.AskForMN(pnode, vinMasternode, connman);
         return false;
     }
 
-    if (pmn->protocolVersion < ActiveProtocol()) {
-        strError = strprintf("Masternode protocol too old %d - req %d", pmn->protocolVersion, ActiveProtocol());
+    if (pmn->protocolVersion < PROTOCOL_VERSION) {
+        strError = strprintf("Masternode protocol too old %d - req %d", pmn->protocolVersion, PROTOCOL_VERSION);
         LogPrint(BCLog::MASTERNODE, "CMasternodePaymentWinner::IsValid - %s\n", strError);
         return false;
     }
 
-    int n = mnodeman.GetMasternodeRank(vinMasternode, nBlockHeight - 100, ActiveProtocol());
+    int n = mnodeman.GetMasternodeRank(vinMasternode, nBlockHeight - 100, PROTOCOL_VERSION);
 
     if (n > MNPAYMENTS_SIGNATURES_TOTAL) {
         //It's common to have masternodes mistakenly think they are in the top 10
@@ -195,10 +195,10 @@ bool CMasternodePaymentWinner::IsValid(CNode* pnode, std::string& strError)
     return true;
 }
 
-void CMasternodePaymentWinner::Relay()
+void CMasternodePaymentWinner::Relay(CConnman& connman)
 {
     CInv inv(MSG_MASTERNODE_WINNER, GetHash());
-    g_connman->RelayInv(inv);
+    connman.RelayInv(inv);
 }
 
 void DumpMasternodePayments()
@@ -295,7 +295,7 @@ void CMasternodePayments::FillBlockPayee(CMutableTransaction& txNew, int64_t nFe
         //no masternode detected
         CMasternode* winningNode = mnodeman.GetCurrentMasterNode(1);
         if (winningNode) {
-            payee = GetScriptForDestination(winningNode->pubKeyCollateralAddress.GetID());
+            payee = GetScriptForDestination(PKHash(winningNode->pubKeyCollateralAddress));
         } else {
             LogPrint(BCLog::MASTERNODE, "CreateNewBlock: Failed to detect masternode to pay\n");
             hasPayment = false;
@@ -351,10 +351,10 @@ void CMasternodePayments::FillBlockPayee(CMutableTransaction& txNew, int64_t nFe
 
 int CMasternodePayments::GetMinMasternodePaymentsProto()
 {
-    return ActiveProtocol();
+    return PROTOCOL_VERSION;
 }
 
-void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv)
+void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, CConnman& connman)
 {
     if (!masternodeSync.IsBlockchainSynced())
         return;
@@ -369,7 +369,7 @@ void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, const s
         }
 
         netfulfilledman.AddFulfilledRequest(pfrom->addr, "mnget");
-        masternodePayments.Sync(pfrom, nCountNeeded);
+        masternodePayments.Sync(pfrom, nCountNeeded, connman);
         LogPrint(BCLog::MASTERNODE, "mnget - Sent Masternode winners to peer %i\n", pfrom->GetId());
 
     } else if (strCommand == "mnw") {
@@ -378,7 +378,7 @@ void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, const s
         CMasternodePaymentWinner winner;
         vRecv >> winner;
 
-        if (pfrom->nVersion < ActiveProtocol())
+        if (pfrom->nVersion < PROTOCOL_VERSION)
             return;
 
         int nHeight;
@@ -402,7 +402,7 @@ void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, const s
         }
 
         std::string strError = "";
-        if (!winner.IsValid(pfrom, strError)) {
+        if (!winner.IsValid(pfrom, strError, connman)) {
             if (strError != "")
                 LogPrint(BCLog::MASTERNODE, "mnw - invalid message - %s\n", strError);
             return;
@@ -418,7 +418,7 @@ void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, const s
         LogPrint(BCLog::MASTERNODE, "mnw - winning vote - Addr %s Height %d bestHeight %d - %s\n", EncodeDestination(address1), winner.nBlockHeight, nHeight, winner.vinMasternode.prevout.ToStringShort());
 
         if (masternodePayments.AddWinningMasternode(winner)) {
-            winner.Relay();
+            winner.Relay(connman);
             masternodeSync.AddedMasternodeWinner(winner.GetHash());
         }
     }
@@ -448,7 +448,7 @@ bool CMasternodePayments::IsScheduled(CMasternode& mn, int nNotBlockHeight)
     }
 
     CScript mnpayee;
-    mnpayee = GetScriptForDestination(mn.pubKeyCollateralAddress.GetID());
+    mnpayee = GetScriptForDestination(PKHash(mn.pubKeyCollateralAddress));
 
     CScript payee;
     for (int64_t h = nHeight; h <= nHeight + 8; h++) {
@@ -612,14 +612,14 @@ void CMasternodePayments::CleanPaymentList()
     }
 }
 
-bool CMasternodePayments::ProcessBlock(int nBlockHeight)
+bool CMasternodePayments::ProcessBlock(int nBlockHeight, CConnman& connman)
 {
     if (!fMasternode)
         return false;
 
     //reference node - hybrid mode
 
-    int n = mnodeman.GetMasternodeRank(activeMasternode.vin, nBlockHeight - 100, ActiveProtocol());
+    int n = mnodeman.GetMasternodeRank(activeMasternode.vin, nBlockHeight - 100, PROTOCOL_VERSION);
 
     if (n == -1) {
         LogPrint(BCLog::MASTERNODE, "CMasternodePayments::ProcessBlock - Unknown Masternode\n");
@@ -648,7 +648,7 @@ bool CMasternodePayments::ProcessBlock(int nBlockHeight)
 
             newWinner.nBlockHeight = nBlockHeight;
 
-            CScript payee = GetScriptForDestination(pmn->pubKeyCollateralAddress.GetID());
+            CScript payee = GetScriptForDestination(PKHash(pmn->pubKeyCollateralAddress));
             newWinner.AddPayee(payee);
 
             CTxDestination address1;
@@ -672,7 +672,7 @@ bool CMasternodePayments::ProcessBlock(int nBlockHeight)
     LogPrint(BCLog::MASTERNODE, "CMasternodePayments::ProcessBlock() - AddWinningMasternode\n");
 
     if (AddWinningMasternode(newWinner)) {
-        newWinner.Relay();
+        newWinner.Relay(connman);
         nLastBlockHeight = nBlockHeight;
         return true;
     }
@@ -680,7 +680,7 @@ bool CMasternodePayments::ProcessBlock(int nBlockHeight)
     return false;
 }
 
-void CMasternodePayments::Sync(CNode* node, int nCountNeeded)
+void CMasternodePayments::Sync(CNode* node, int nCountNeeded, CConnman& connman)
 {
     LOCK(cs_mapMasternodePayeeVotes);
 
@@ -706,7 +706,7 @@ void CMasternodePayments::Sync(CNode* node, int nCountNeeded)
         }
         ++it;
     }
-    g_connman->PushMessage(node, CNetMsgMaker(node->GetSendVersion()).Make(NetMsgType::SYNCSTATUSCOUNT, MASTERNODE_SYNC_MNW, nInvCount));
+    connman.PushMessage(node, CNetMsgMaker(node->GetSendVersion()).Make(NetMsgType::SYNCSTATUSCOUNT, MASTERNODE_SYNC_MNW, nInvCount));
 }
 
 std::string CMasternodePayments::ToString() const

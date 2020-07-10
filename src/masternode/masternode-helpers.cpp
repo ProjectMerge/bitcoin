@@ -29,7 +29,7 @@ bool CMasternodeSigner::GetKeysFromSecret(std::string strSecret, CKey& keyRet, C
 
 bool CMasternodeSigner::IsVinAssociatedWithPubkey(CTxIn& vin, CPubKey& pubkey)
 {
-    CScript payee2 = GetScriptForDestination(pubkey.GetID());
+    CScript payee2 = GetScriptForDestination(PKHash(pubkey));
 
     CTransactionRef txVin;
     uint256 hash;

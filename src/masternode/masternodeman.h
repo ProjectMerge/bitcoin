@@ -101,7 +101,7 @@ public:
     bool Add(CMasternode& mn);
 
     /// Ask (source) node for mnb
-    void AskForMN(CNode* pnode, CTxIn& vin);
+    void AskForMN(CNode* pnode, CTxIn& vin, CConnman& connman);
 
     /// Check all Masternodes
     void Check();
@@ -116,7 +116,7 @@ public:
 
     void CountNetworks(int protocolVersion, int& ipv4, int& ipv6, int& onion);
 
-    void DsegUpdate(CNode* pnode);
+    void DsegUpdate(CNode* pnode, CConnman& connman);
 
     /// Find an entry
     CMasternode* Find(const CScript& payee);
@@ -142,7 +142,7 @@ public:
     int GetMasternodeRank(const CTxIn& vin, int64_t nBlockHeight, int minProtocol = 0, bool fOnlyActive = true);
     CMasternode* GetMasternodeByRank(int nRank, int64_t nBlockHeight, int minProtocol = 0, bool fOnlyActive = true);
 
-    void ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv);
+    void ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, CConnman& connman);
     void ProcessMasternodeConnections(CConnman& connman);
 
     /// Return the number of (unique) Masternodes
@@ -158,9 +158,9 @@ public:
     int GetEstimatedMasternodes(int nBlock);
 
     /// Update masternode list and maps using provided CMasternodeBroadcast
-    void UpdateMasternodeList(CMasternodeBroadcast mnb);
+    void UpdateMasternodeList(CMasternodeBroadcast mnb, CConnman& connman);
 };
 
-void ThreadCheckMasternodes();
+void ThreadCheckMasternodes(CConnman* connman);
 
 #endif

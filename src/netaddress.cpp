@@ -5,6 +5,7 @@
 
 #include <netaddress.h>
 #include <hash.h>
+#include <netbase.h>
 #include <util/strencodings.h>
 #include <util/asmap.h>
 #include <tinyformat.h>
@@ -105,6 +106,15 @@ CNetAddr::CNetAddr(const struct in6_addr& ipv6Addr, const uint32_t scope)
 {
     SetRaw(NET_IPV6, (const uint8_t*)&ipv6Addr);
     scopeId = scope;
+}
+
+//! legacy function for masternode use
+CNetAddr::CNetAddr(const std::string &strIp, bool fAllowLookup)
+{
+    //Init();
+    std::vector<CNetAddr> vIP;
+    if (LookupHost(strIp.c_str(), vIP, 1, fAllowLookup))
+        *this = vIP[0];
 }
 
 unsigned int CNetAddr::GetByte(int n) const
@@ -750,6 +760,13 @@ std::string CService::ToStringIPPort() const
 std::string CService::ToString() const
 {
     return ToStringIPPort();
+}
+
+CService::CService(const std::string& strIpPort, bool fAllowLookup)
+{
+    CService ip;
+    if (Lookup(strIpPort.c_str(), ip, 0, fAllowLookup))
+        *this = ip;
 }
 
 CSubNet::CSubNet():

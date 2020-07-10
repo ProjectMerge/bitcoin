@@ -568,6 +568,9 @@ void BitcoinGUI::setClientModel(ClientModel *_clientModel)
             this->message(title, message, style);
         });
 
+        // Connect signal for masternode sync progress
+        connect(clientModel, &ClientModel::additionalDataSyncProgressChanged, this, &BitcoinGUI::setAdditionalDataSyncProgress);
+
         // Show progress dialog
         connect(_clientModel, &ClientModel::showProgress, this, &BitcoinGUI::showProgress);
 

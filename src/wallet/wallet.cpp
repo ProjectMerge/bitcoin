@@ -30,6 +30,7 @@
 #include <util/translation.h>
 #include <wallet/coincontrol.h>
 #include <wallet/fees.h>
+#include <wallet/rpcwallet.h>
 
 #include <algorithm>
 #include <assert.h>
@@ -2247,6 +2248,14 @@ void CWallet::AvailableCoins(interfaces::Chain::Lock& locked_chain, std::vector<
     }
 }
 
+void CWallet::AvailableCoins(std::vector<COutput>& vCoins)
+{
+    auto locked_chain = chain().lock();
+    LOCK(cs_wallet);
+
+    AvailableCoins(*locked_chain, vCoins);
+}
+
 std::map<CTxDestination, std::vector<COutput>> CWallet::ListCoins(interfaces::Chain::Lock& locked_chain) const
 {
     AssertLockHeld(cs_wallet);
@@ -4382,6 +4391,60 @@ std::unique_ptr<SigningProvider> CWallet::GetSolvingProvider(const CScript& scri
         }
     }
     return nullptr;
+}
+
+bool CWallet::GetMasternodeOutpointAndKeys(COutPoint& outpointRet, CPubKey& pubKeyRet, CKey& keyRet, std::string strTxHash, std::string strOutputIndex)
+{
+    auto locked_chain = chain().lock();
+    LOCK(cs_wallet);
+
+    // Find possible candidates
+    std::vector<COutput> vPossibleCoins;
+    AvailableCoins(*locked_chain, vPossibleCoins, true, NULL, false, ONLY_MASTERNODE_COLLATERAL);
+
+    if (vPossibleCoins.empty()) {
+        LogPrintf("CWallet::GetMasternodeOutpointAndKeys -- Could not locate any valid masternode vin\n");
+        return false;
+    }
+
+    if (strTxHash.empty())
+        return GetOutpointAndKeysFromOutput(vPossibleCoins[0], outpointRet, pubKeyRet, keyRet);
+
+    // Find specific vin
+    uint256 txHash = uint256S(strTxHash);
+    int nOutputIndex = atoi(strOutputIndex.c_str());
+
+    for (auto& out : vPossibleCoins)
+        if (out.tx->GetHash() == txHash && out.i == nOutputIndex)
+            return GetOutpointAndKeysFromOutput(out, outpointRet, pubKeyRet, keyRet);
+
+    return false;
+}
+
+bool CWallet::GetOutpointAndKeysFromOutput(const COutput& out, COutPoint& outpointRet, CPubKey& pubKeyRet, CKey& keyRet)
+{
+    CScript pubScript;
+    outpointRet = COutPoint(out.tx->GetHash(), out.i);
+    pubScript = out.tx->tx->vout[out.i].scriptPubKey;
+
+    auto m_wallet = GetMainWallet();
+    LegacyScriptPubKeyMan& spk_man = EnsureLegacyScriptPubKeyMan(*m_wallet);
+
+    CTxDestination address1;
+    ExtractDestination(pubScript, address1);
+    CKeyID keyID = GetKeyForDestination(spk_man, address1);
+    if (keyID.IsNull()) {
+        LogPrintf("CWallet::GetOutpointAndKeysFromOutput -- Address does not refer to a key\n");
+        return false;
+    }
+
+    if (!spk_man.GetKey(keyID, keyRet)) {
+        LogPrintf("CWallet::GetOutpointAndKeysFromOutput -- Private key for address is not known\n");
+        return false;
+    }
+
+    pubKeyRet = keyRet.GetPubKey();
+    return true;
 }
 
 LegacyScriptPubKeyMan* CWallet::GetLegacyScriptPubKeyMan() const

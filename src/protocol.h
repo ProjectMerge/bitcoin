@@ -44,7 +44,7 @@ public:
     CMessageHeader(const MessageStartChars& pchMessageStartIn, const char* pszCommand, unsigned int nMessageSizeIn);
 
     std::string GetCommand() const;
-    bool IsValid(const MessageStartChars& messageStart) const;
+    bool IsValid(const MessageStartChars& pchMessageStartIn) const;
 
     ADD_SERIALIZE_METHODS;
 
@@ -234,7 +234,68 @@ extern const char *GETBLOCKTXN;
  * @since protocol version 70014 as described by BIP 152
  */
 extern const char *BLOCKTXN;
-};
+/**
+ * The ix message transmits a single SwiftX transaction
+ */
+extern const char *IX;
+/**
+ * The ixlockvote message is used to reach consensus for SwiftX
+ * transaction locks
+ */
+extern const char *IXLOCKVOTE;
+/**
+ * The spork message is used to send spork values to connected
+ * peers
+ */
+extern const char *SPORK;
+/**
+ * The getsporks message is used to request spork data from connected peers
+ */
+extern const char *GETSPORKS;
+/**
+ * The mnbroadcast message is used to broadcast masternode startup data to connected peers
+ */
+extern const char *MNBROADCAST;
+/**
+ * The mnping message is used to ensure a masternode is still active
+ */
+extern const char *MNPING;
+/**
+ * The mnwinner message is used to relay and distribute consensus for masternode
+ * payout ordering
+ */
+extern const char *MNWINNER;
+/**
+ * The getmnwinners message is used to request winning masternode data from connected peers
+ */
+extern const char *GETMNWINNERS;
+/**
+ * The budgetproposal message is used to broadcast or relay budget proposal metadata to connected peers
+ */
+extern const char *BUDGETPROPOSAL;
+/**
+ * The budgetvote message is used to broadcast or relay budget proposal votes to connected peers
+ */
+extern const char *BUDGETVOTE;
+/**
+ * The budgetvotesync message is used to request budget vote data from connected peers
+ */
+extern const char *BUDGETVOTESYNC;
+/**
+ * The finalbudget message is used to broadcast or relay finalized budget metadata to connected peers
+ */
+extern const char *FINALBUDGET;
+/**
+ * The finalbudgetvote message is used to broadcast or relay finalized budget votes to connected peers
+ */
+extern const char *FINALBUDGETVOTE;
+/**
+ * The syncstatuscount message is used to track the layer 2 syncing process
+ */
+extern const char *SYNCSTATUSCOUNT;
+extern const char *DSEG;
+extern const char *DSEEP;
+}; // namespace NetMsgType
 
 /* Get a vector of all valid message types (see above) */
 const std::vector<std::string> &getAllNetMessageTypes();
@@ -355,25 +416,6 @@ public:
 };
 
 /** getdata message type flags */
-const uint32_t MSG_WITNESS_FLAG = 1 << 30;
-const uint32_t MSG_TYPE_MASK    = 0xffffffff >> 2;
-
-/** getdata / inv message types.
- * These numbers are defined by the protocol. When adding a new value, be sure
- * to mention it in the respective BIP.
- */
-enum GetDataMsg
-{
-    UNDEFINED = 0,
-    MSG_TX = 1,
-    MSG_BLOCK = 2,
-    // The following can only occur in getdata. Invs always use TX or BLOCK.
-    MSG_FILTERED_BLOCK = 3,  //!< Defined in BIP37
-    MSG_CMPCT_BLOCK = 4,     //!< Defined in BIP152
-    MSG_WITNESS_BLOCK = MSG_BLOCK | MSG_WITNESS_FLAG, //!< Defined in BIP144
-    MSG_WITNESS_TX = MSG_TX | MSG_WITNESS_FLAG,       //!< Defined in BIP144
-    MSG_FILTERED_WITNESS_BLOCK = MSG_FILTERED_BLOCK | MSG_WITNESS_FLAG,
-};
 
 /** inv message data */
 class CInv
@@ -381,6 +423,7 @@ class CInv
 public:
     CInv();
     CInv(int typeIn, const uint256& hashIn);
+    CInv(const std::string& strType, const uint256& hashIn);
 
     ADD_SERIALIZE_METHODS;
 
@@ -393,12 +436,42 @@ public:
 
     friend bool operator<(const CInv& a, const CInv& b);
 
-    std::string GetCommand() const;
+    bool IsKnownType() const;
+    bool IsMasterNodeType() const;
+    const char* GetCommand() const;
     std::string ToString() const;
 
-public:
     int type;
     uint256 hash;
 };
 
+/** getdata message type flags */
+const uint32_t MSG_WITNESS_FLAG = 1 << 30;
+const uint32_t MSG_TYPE_MASK    = 0xffffffff >> 2;
+
+enum
+{
+    MSG_TX = 1,
+    MSG_BLOCK,
+    // Nodes may always request a MSG_FILTERED_BLOCK in a getdata, however,
+    // MSG_FILTERED_BLOCK should not appear in any invs except as a part of getdata.
+    MSG_FILTERED_BLOCK,
+    MSG_TXLOCK_REQUEST,
+    MSG_TXLOCK_VOTE,
+    MSG_SPORK,
+    MSG_MASTERNODE_WINNER,
+    MSG_MASTERNODE_SCANNING_ERROR,
+    MSG_BUDGET_VOTE,
+    MSG_BUDGET_PROPOSAL,
+    MSG_BUDGET_FINALIZED,
+    MSG_BUDGET_FINALIZED_VOTE,
+    MSG_MASTERNODE_QUORUM,
+    MSG_MASTERNODE_ANNOUNCE,
+    MSG_MASTERNODE_PING,
+    MSG_DSTX,
+    MSG_CMPCT_BLOCK, //!< Defined in BIP152
+    MSG_WITNESS_BLOCK = MSG_BLOCK | MSG_WITNESS_FLAG, //!< Defined in BIP144
+    MSG_WITNESS_TX = MSG_TX | MSG_WITNESS_FLAG,       //!< Defined in BIP144
+    MSG_FILTERED_WITNESS_BLOCK = MSG_FILTERED_BLOCK | MSG_WITNESS_FLAG,
+};
 #endif // BITCOIN_PROTOCOL_H

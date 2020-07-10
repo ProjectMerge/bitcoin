@@ -30,7 +30,7 @@ private:
     mutable RecursiveMutex cs;
 
     /// Ping Masternode
-    bool SendMasternodePing(std::string& errorMessage);
+    bool SendMasternodePing(std::string& errorMessage, CConnman& connman);
 
     /// Create Masternode broadcast, needs to be relayed manually after that
     bool CreateBroadcast(CTxIn vin, CService service, CKey key, CPubKey pubKey, CKey keyMasternode, CPubKey pubKeyMasternode, std::string& errorMessage, CMasternodeBroadcast& mnb);
@@ -57,7 +57,7 @@ public:
     }
 
     /// Manage status of main Masternode
-    void ManageStatus();
+    void ManageStatus(CConnman& connman);
     std::string GetStatus();
 
     /// Create Masternode broadcast, needs to be relayed manually after that

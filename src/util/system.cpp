@@ -71,7 +71,14 @@
 // Application startup time (used for uptime calculation)
 const int64_t nStartupTime = GetTime();
 
-const char * const BITCOIN_CONF_FILENAME = "bitcoin.conf";
+bool fMasternode = false;
+bool fLiteMode = false;
+std::string strMasterNodeAddr = "";
+std::string strMasterNodePrivKey = "";
+const char * const BITCOIN_CONF_FILENAME = "merge.conf";
+const char * const BITCOIN_PID_FILENAME = "merge.pid";
+const char * const MASTERNODE_CONF_FILENAME_ARG = "-mnconf";
+const char * const MASTERNODE_CONF_FILENAME = "masternode.conf";
 
 ArgsManager gArgs;
 
@@ -702,6 +709,15 @@ static bool GetConfigOptions(std::istream& stream, const std::string& filepath, 
         ++linenr;
     }
     return true;
+}
+
+fs::path GetMasternodeConfigFile()
+{
+    boost::filesystem::path pathConfigFile(gArgs.GetArg("-mnconf", "masternode.conf"));
+    if (!pathConfigFile.is_complete())
+        return fs::absolute(pathConfigFile, GetDataDir());
+
+    return pathConfigFile;
 }
 
 bool ArgsManager::ReadConfigStream(std::istream& stream, const std::string& filepath, std::string& error, bool ignore_invalid_keys)

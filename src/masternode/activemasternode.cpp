@@ -21,6 +21,7 @@
 #include <validation.h>
 #include <wallet/coincontrol.h>
 #include <wallet/wallet.h>
+#include <wallet/rpcwallet.h>
 
 #include <protocol.h>
 
@@ -29,7 +30,7 @@ CActiveMasternode activeMasternode;
 //
 // Bootup the Masternode, look for a 10000 MERGE input and register on the network
 //
-void CActiveMasternode::ManageStatus()
+void CActiveMasternode::ManageStatus(CConnman& connman)
 {
     std::string errorMessage;
 
@@ -124,7 +125,7 @@ void CActiveMasternode::ManageStatus()
 
             //send to all peers
             LogPrint(BCLog::MASTERNODE, "CActiveMasternode::ManageStatus() - Relay broadcast vin = %s\n", vin.ToString());
-            mnb.Relay();
+            mnb.Relay(connman);
 
             LogPrint(BCLog::MASTERNODE, "CActiveMasternode::ManageStatus() - Is capable master node!\n");
             status = ACTIVE_MASTERNODE_STARTED;
@@ -138,7 +139,7 @@ void CActiveMasternode::ManageStatus()
     }
 
     //send to all peers
-    if (!SendMasternodePing(errorMessage)) {
+    if (!SendMasternodePing(errorMessage, connman)) {
         LogPrint(BCLog::MASTERNODE, "CActiveMasternode::ManageStatus() - Error on Ping: %s\n", errorMessage);
     }
 }
@@ -161,7 +162,7 @@ std::string CActiveMasternode::GetStatus()
     }
 }
 
-bool CActiveMasternode::SendMasternodePing(std::string& errorMessage)
+bool CActiveMasternode::SendMasternodePing(std::string& errorMessage, CConnman& connman)
 {
     if (status != ACTIVE_MASTERNODE_STARTED) {
         errorMessage = "Masternode is not in a running status";
@@ -201,7 +202,7 @@ bool CActiveMasternode::SendMasternodePing(std::string& errorMessage)
         if (mnodeman.mapSeenMasternodeBroadcast.count(hash))
             mnodeman.mapSeenMasternodeBroadcast[hash].lastPing = mnp;
 
-        mnp.Relay();
+        mnp.Relay(connman);
         return true;
 
     } else {
@@ -347,7 +348,9 @@ bool CActiveMasternode::GetVinFromOutput(COutput out, CTxIn& vin, CPubKey& pubke
     std::string address2 = EncodeDestination(address1);
 
     CKeyID keyID;
-    if (!GetMainWallet()->GetKey(keyID, secretKey)) {
+    auto m_wallet = GetMainWallet();
+    LegacyScriptPubKeyMan& spk_man = EnsureLegacyScriptPubKeyMan(*m_wallet);
+    if (!spk_man.GetKey(keyID, secretKey)) {
         LogPrint(BCLog::MASTERNODE, "CActiveMasternode::GetMasterNodeVin - Private key for address is not known\n");
         return false;
     }

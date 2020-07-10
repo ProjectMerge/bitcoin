@@ -180,8 +180,8 @@ public:
     uint256 GetSignatureHash() { return GetHash(); }
     std::string GetStrMessage() const;
     const CTxIn GetVin() { return vinMasternode; };
-    bool IsValid(CNode* pnode, std::string& strError);
-    void Relay();
+    bool IsValid(CNode* pnode, std::string& strError, CConnman& connman);
+    void Relay(CConnman& connman);
 
     void AddPayee(CScript payeeIn)
     {
@@ -239,9 +239,9 @@ public:
     }
 
     bool AddWinningMasternode(CMasternodePaymentWinner& winner);
-    bool ProcessBlock(int nBlockHeight);
+    bool ProcessBlock(int nBlockHeight, CConnman& connman);
 
-    void Sync(CNode* node, int nCountNeeded);
+    void Sync(CNode* node, int nCountNeeded, CConnman& connman);
     void CleanPaymentList();
     int LastPayment(CMasternode& mn);
 
@@ -265,7 +265,7 @@ public:
     }
 
     int GetMinMasternodePaymentsProto();
-    void ProcessMessageMasternodePayments(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv);
+    void ProcessMessageMasternodePayments(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, CConnman& connman);
     std::string GetRequiredPaymentsString(int nBlockHeight);
     void FillBlockPayee(CMutableTransaction& txNew, int64_t nFees, bool fProofOfStake, bool fZPIVStake);
     std::string ToString() const;
