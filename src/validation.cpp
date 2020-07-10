@@ -59,8 +59,9 @@
 #define MICRO 0.000001
 #define MILLI 0.001
 
-static std::map<uint256, uint256> mapProofOfStake;
+std::map<uint256, uint256> mapProofOfStake;
 std::map<unsigned int, unsigned int> mapHashedBlocks;
+std::set<std::pair<uint256, unsigned int> > setStakeSeen;
 
 bool CBlockIndexWorkComparator::operator()(const CBlockIndex *pa, const CBlockIndex *pb) const {
     // First sort by most total work, ...
@@ -1156,7 +1157,7 @@ bool ReadBlockFromDisk(CBlock& block, const FlatFilePos& pos, const Consensus::P
     }
 
     // Check the header
-    if (!CheckProofOfWork(block.GetHash(), block.nBits, consensusParams))
+    if (block.IsProofOfWork() && !CheckProofOfWork(block.GetHash(), block.nBits, consensusParams))
         return error("ReadBlockFromDisk: Errors in block header at %s", pos.ToString());
 
     return true;
@@ -1782,6 +1783,24 @@ static bool WriteUndoDataForBlock(const CBlockUndo& blockundo, BlockValidationSt
     return true;
 }
 
+static bool WriteTxIndexDataForBlock(const CBlock& block, BlockValidationState& state, CBlockIndex* pindex)
+{
+    CDiskTxPos pos(pindex->GetBlockPos(), GetSizeOfCompactSize(block.vtx.size()));
+    std::vector<std::pair<uint256, CDiskTxPos> > vPos;
+    vPos.reserve(block.vtx.size());
+    for (const CTransactionRef& tx : block.vtx)
+    {
+        vPos.push_back(std::make_pair(tx->GetHash(), pos));
+        pos.nTxOffset += ::GetSerializeSize(*tx, CLIENT_VERSION);
+    }
+
+    if (!pblocktree->WriteTxIndex(vPos)) {
+        return AbortNode(state, "Failed to write transaction index");
+    }
+
+    return true;
+}
+
 static CCheckQueue<CScriptCheck> scriptcheckqueue(128);
 
 void ThreadScriptCheck(int worker_num) {
@@ -1937,14 +1956,24 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
     uint256 hashPrevBlock = pindex->pprev == nullptr ? uint256() : pindex->pprev->GetBlockHash();
     assert(hashPrevBlock == view.GetBestBlock());
 
-    nBlocksTotal++;
-
     // Special case for the genesis block, skipping connection of its transactions
     // (its coinbase is unspendable)
     if (block.GetHash() == chainparams.GetConsensus().hashGenesisBlock) {
         if (!fJustCheck)
             view.SetBestBlock(pindex->GetBlockHash());
         return true;
+    }
+
+    nBlocksTotal++;
+
+    uint256 hashProofOfStake = uint256();
+    if (block.IsProofOfStake()) {
+        if (!CheckProofOfStake(block, hashProofOfStake)) {
+            LogPrintf("block failed stake kernel check\n");
+            return false;
+        } else {
+            LogPrintf("hashProof %s\n", hashProofOfStake.ToString().c_str());
+        }
     }
 
     bool fScriptChecks = true;
@@ -2196,6 +2225,9 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
         pindex->RaiseValidity(BLOCK_VALID_SCRIPTS);
         setDirtyBlockIndex.insert(pindex);
     }
+
+    if (!WriteTxIndexDataForBlock(block, state, pindex))
+        return false;
 
     assert(pindex->phashBlock);
     // add this block to the view's block chain
@@ -3142,11 +3174,21 @@ CBlockIndex* BlockManager::AddToBlockIndex(const CBlockHeader& block)
 
     // Construct new block index object
     CBlockIndex* pindexNew = new CBlockIndex(block);
+
+    // Get block type
+    bool isPoS = block.nNonce == 0;
+    if (isPoS)
+        pindexNew->SetProofOfStake();
+
     // We assign the sequence id to blocks only when the full data is available,
     // to avoid miners withholding blocks but broadcasting headers, to get a
     // competitive advantage.
     pindexNew->nSequenceId = 0;
     BlockMap::iterator mi = m_block_index.insert(std::make_pair(hash, pindexNew)).first;
+
+    //mark as PoS seen
+    if (pindexNew->IsProofOfStake())
+        setStakeSeen.insert(std::make_pair(hash, pindexNew->nTime));
 
     pindexNew->phashBlock = &((*mi).first);
     BlockMap::iterator miPrev = m_block_index.find(block.hashPrevBlock);
@@ -3156,19 +3198,9 @@ CBlockIndex* BlockManager::AddToBlockIndex(const CBlockHeader& block)
         pindexNew->nHeight = pindexNew->pprev->nHeight + 1;
         pindexNew->BuildSkip();
 
-        // ppcoin: compute chain trust score
-        pindexNew->bnChainTrust = (pindexNew->pprev ? pindexNew->pprev->bnChainTrust : 0) + pindexNew->GetBlockTrust();
-
         // ppcoin: compute stake entropy bit for stake modifier
         if (!pindexNew->SetStakeEntropyBit(pindexNew->GetStakeEntropyBit()))
             LogPrintf("AddToBlockIndex() : SetStakeEntropyBit() failed \n");
-
-        // ppcoin: record proof-of-stake hash value
-        if (pindexNew->IsProofOfStake()) {
-            if (!mapProofOfStake.count(hash))
-                LogPrintf("AddToBlockIndex() : hashProofOfStake not found in map \n");
-            pindexNew->hashProofOfStake = mapProofOfStake[hash];
-        }
 
         // ppcoin: compute stake modifier
         uint64_t nStakeModifier = 0;
@@ -3308,7 +3340,8 @@ static bool FindUndoPos(BlockValidationState &state, int nFile, FlatFilePos &pos
 
 static bool CheckBlockHeader(const CBlockHeader& block, BlockValidationState& state, const Consensus::Params& consensusParams, bool fCheckPOW = true)
 {
-    bool isProofOfStake = block.nNonce == 0;
+    // We do this as CBlockHeader has no flags
+    bool isProofOfStake = (block.nNonce == 0);
 
     // Check proof of work matches claimed amount
     if (fCheckPOW && !isProofOfStake && !CheckProofOfWork(block.GetHash(), block.nBits, consensusParams))
@@ -3699,12 +3732,15 @@ bool BlockManager::AcceptBlockHeader(const CBlockHeader& block, BlockValidationS
     if (ppindex)
         *ppindex = pindex;
 
+    ::ChainstateActive().CheckBlockIndex(chainparams.GetConsensus());
+
     return true;
 }
 
 // Exposed wrapper for AcceptBlockHeader
 bool ProcessNewBlockHeaders(const std::vector<CBlockHeader>& headers, BlockValidationState& state, const CChainParams& chainparams, const CBlockIndex** ppindex)
 {
+    AssertLockNotHeld(cs_main);
     {
         LOCK(cs_main);
         for (const CBlockHeader& header : headers) {
@@ -3764,6 +3800,9 @@ bool CChainState::AcceptBlock(const std::shared_ptr<const CBlock>& pblock, Block
     if (!accepted_header)
         return false;
 
+    if (block.IsProofOfStake())
+        pindex->prevoutStake = block.vtx[1]->vin[0].prevout;
+
     // Try to process all requested blocks that we don't have, but only
     // process an unrequested block if it's new and has enough work to
     // advance our tip, and isn't too many blocks ahead.
@@ -3803,11 +3842,6 @@ bool CChainState::AcceptBlock(const std::shared_ptr<const CBlock>& pblock, Block
             setDirtyBlockIndex.insert(pindex);
         }
         return error("%s: %s", __func__, state.ToString());
-    }
-
-    uint256 hashProofOfStake;
-    if (!CheckProofOfStake(block, hashProofOfStake)) {
-        LogPrintf("block failed stake kernel check\n");
     }
 
     // Header is valid/has work, merkle tree and segwit merkle tree are good...RELAY NOW
@@ -4646,6 +4680,8 @@ bool LoadBlockIndex(const CChainParams& chainparams)
         // needs_init.
 
         LogPrintf("Initializing databases...\n");
+
+        pblocktree->WriteFlag("txindex", true);
     }
     return true;
 }
