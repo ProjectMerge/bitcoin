@@ -4,11 +4,24 @@
 
 #include <consensus/tx_check.h>
 
+#include <arith_uint256.h>
 #include <primitives/transaction.h>
 #include <consensus/validation.h>
 
+
+bool IsGenesisTx(const CTransaction& tx)
+{
+    arith_uint256 txHash = UintToArith256(tx.GetHash());
+    if (txHash == arith_uint256("2b77d68f79c8c45b77335607c928533950da763a4a16c34555bdf8446aa6cc1c"))
+        return true;
+    return false;
+}
+
 bool CheckTransaction(const CTransaction& tx, TxValidationState& state)
 {
+    if (IsGenesisTx(tx))
+        return true;
+
     // Basic checks that don't depend on any context
     if (tx.vin.empty())
         return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-vin-empty");

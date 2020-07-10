@@ -6,8 +6,11 @@
 #ifndef BITCOIN_CONSENSUS_PARAMS_H
 #define BITCOIN_CONSENSUS_PARAMS_H
 
+#include <amount.h>
 #include <uint256.h>
 #include <limits>
+#include <map>
+#include <string>
 
 namespace Consensus {
 
@@ -72,6 +75,8 @@ struct Params {
     uint32_t nMinerConfirmationWindow;
     BIP9Deployment vDeployments[MAX_VERSION_BITS_DEPLOYMENTS];
     /** Proof of work parameters */
+    int nMaxReorganizationDepth;
+    int nLastPoWBlock;
     uint256 powLimit;
     bool fPowAllowMinDifficultyBlocks;
     bool fPowNoRetargeting;
@@ -80,6 +85,29 @@ struct Params {
     int64_t DifficultyAdjustmentInterval() const { return nPowTargetTimespan / nPowTargetSpacing; }
     uint256 nMinimumChainWork;
     uint256 defaultAssumeValid;
+
+    //! proof of stake
+    uint256 posLimit;
+    int64_t nMinStakeAge;
+    int64_t nMaxStakeAge;
+    int nMaxHashDrift;
+    int nPoSTargetSpacing;
+    int nPoSTargetTimespan;
+    CAmount nCollateralAmount;
+    unsigned int nModifierInterval;
+    unsigned int nModifierUpgradeBlock;
+    int nMasternodeMinimumConfirmations;
+
+    //! getters for consensus variables
+    int LastPoWBlock() const { return nLastPoWBlock; }
+    int64_t MinStakeAge() const { return nMinStakeAge; }
+    int64_t MaxStakeAge() const { return nMaxStakeAge; }
+    int64_t MaxHashDrift() const { return nMaxHashDrift; }
+    int64_t PoSTargetSpacing() const  { return nPoSTargetSpacing; }
+    int64_t PoSTargetTimespan() const { return nPoSTargetTimespan; }
+    uint256 ProofOfStakeLimit() const { return posLimit; }
+    unsigned int ModifierInterval() const { return nModifierInterval; }
+    unsigned int ModifierUpgradeBlock() const { return nModifierUpgradeBlock; }
 };
 } // namespace Consensus
 
