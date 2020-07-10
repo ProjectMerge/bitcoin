@@ -129,6 +129,7 @@ BITCOIN_CORE_H = \
   core_io.h \
   core_memusage.h \
   cuckoocache.h \
+  flat-database.h \
   flatfile.h \
   fs.h \
   httprpc.h \
@@ -146,6 +147,15 @@ BITCOIN_CORE_H = \
   key_io.h \
   dbwrapper.h \
   limitedmap.h \
+  masternode/activemasternode.h \
+  masternode/masternode.h \
+  masternode/masternode-payments.h \
+  masternode/masternode-sync.h \
+  masternode/masternodeman.h \
+  masternode/masternodeconfig.h \
+  masternode/masternode-helpers.h \
+  masternode/netfulfilledman.h \
+  masternode/spork.h \
   logging.h \
   logging/timer.h \
   memusage.h \
@@ -287,6 +297,15 @@ libbitcoin_server_a_SOURCES = \
   interfaces/node.cpp \
   init.cpp \
   dbwrapper.cpp \
+  masternode/activemasternode.cpp \
+  masternode/masternode.cpp \
+  masternode/masternode-payments.cpp \
+  masternode/masternode-sync.cpp \
+  masternode/masternodeman.cpp \
+  masternode/masternodeconfig.cpp \
+  masternode/masternode-helpers.cpp \
+  masternode/netfulfilledman.cpp \
+  masternode/spork.cpp \
   miner.cpp \
   net.cpp \
   net_processing.cpp \
