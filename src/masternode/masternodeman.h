@@ -161,6 +161,4 @@ public:
     void UpdateMasternodeList(CMasternodeBroadcast mnb, CConnman& connman);
 };
 
-void ThreadCheckMasternodes(CConnman* connman);
-
 #endif

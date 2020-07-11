@@ -1162,33 +1162,3 @@ std::string CMasternodeMan::ToString() const
     return info.str();
 }
 
-void ThreadCheckMasternodes(CConnman* connman)
-{
-    unsigned int c = 0;
-
-    //! spin until chain synced
-    while (!masternodeSync.IsBlockchainSynced() && !ShutdownRequested()) { usleep(5000); };
-
-    while (true)
-    {
-        MilliSleep(1000);
-
-        // try to sync from all available nodes, one step at a time
-        masternodeSync.Process(*connman);
-
-        if (masternodeSync.IsBlockchainSynced()) {
-            c++;
-
-            // check if we should activate or ping every few minutes,
-            // start right after sync is considered to be done
-            if (c % MASTERNODE_PING_SECONDS == 1)
-                activeMasternode.ManageStatus(*connman);
-
-            if (c % 60 == 0) {
-                mnodeman.CheckAndRemove();
-                mnodeman.ProcessMasternodeConnections(*connman);
-                masternodePayments.CleanPaymentList();
-            }
-        }
-    }
-}

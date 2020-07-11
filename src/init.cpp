@@ -1900,7 +1900,6 @@ bool AppInitMain(NodeContext& node)
 
     // ********************************************************* Step 11c: update block tip in Dash modules
 
-    threadGroup.create_thread(std::bind(&ThreadCheckMasternodes, node.connman.get()));
     int chain_active_height;
 
     //// debug print

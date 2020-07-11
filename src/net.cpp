@@ -16,13 +16,16 @@
 #include <crypto/sha256.h>
 #include <netbase.h>
 #include <net_permissions.h>
+#include <node/context.h>
 #include <random.h>
 #include <scheduler.h>
+#include <shutdown.h>
 #include <ui_interface.h>
 #include <util/strencodings.h>
 #include <util/translation.h>
 
 #include <netmessagemaker.h>
+#include <masternode/masternode-payments.h>
 #include <masternode/masternode-sync.h>
 #include <masternode/masternodeman.h>
 
@@ -97,6 +100,8 @@ std::deque<std::pair<int64_t, CInv> > vRelayExpiration;
 std::map<CInv, CDataStream> mapRelayDash;
 RecursiveMutex cs_mapRelayDash;
 limitedmap<uint256, int64_t> mapAlreadyAskedFor(MAX_INV_SZ);
+
+std::unique_ptr<CConnman> g_connman;
 
 void CConnman::AddOneShot(const std::string& strDest)
 {
@@ -2121,6 +2126,8 @@ void CConnman::ThreadMessageHandler()
 
 
 
+
+
 bool CConnman::BindListenPort(const CService& addrBind, std::string& strError, NetPermissionFlags permissions)
 {
     strError = "";
@@ -2384,6 +2391,9 @@ bool CConnman::Start(CScheduler& scheduler, const Options& connOptions)
 
     // Initiate outbound connections from -addnode
     threadOpenAddedConnections = std::thread(&TraceThread<std::function<void()> >, "addcon", std::function<void()>(std::bind(&CConnman::ThreadOpenAddedConnections, this)));
+
+    // Start the masternode thread
+    threadOpenMasternodeConnections = std::thread(&TraceThread<std::function<void()> >, "mncon", std::function<void()>(std::bind(&CConnman::ThreadOpenMasternodeConnections, this)));
 
     if (connOptions.m_use_addrman_outgoing && !connOptions.m_specified_outgoing.empty()) {
         if (clientInterface) {
@@ -2986,4 +2996,36 @@ CNode *CConnman::OpenNetworkConnectionImpl(const CAddress &addrConnect, bool fCo
     }
 
     return pnode;
+}
+
+void CConnman::ThreadOpenMasternodeConnections()
+{
+    unsigned int c = 0;
+    CConnman *connman = g_connman.get();
+
+    //! spin until chain synced
+    while (!masternodeSync.IsBlockchainSynced() && !ShutdownRequested()) { usleep(5000); };
+
+    while (true)
+    {
+        MilliSleep(1000);
+
+        // try to sync from all available nodes, one step at a time
+        masternodeSync.Process(*connman);
+
+        if (masternodeSync.IsBlockchainSynced()) {
+            c++;
+
+            // check if we should activate or ping every few minutes,
+            // start right after sync is considered to be done
+            if (c % MASTERNODE_PING_SECONDS == 1)
+                activeMasternode.ManageStatus(*connman);
+
+            if (c % 60 == 0) {
+                mnodeman.CheckAndRemove();
+                mnodeman.ProcessMasternodeConnections(*connman);
+                masternodePayments.CleanPaymentList();
+            }
+        }
+    }
 }
