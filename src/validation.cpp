@@ -23,7 +23,6 @@
 #include <policy/fees.h>
 #include <policy/policy.h>
 #include <policy/settings.h>
-#include <pos/kernel.h>
 #include <pow.h>
 #include <primitives/block.h>
 #include <primitives/transaction.h>
@@ -46,6 +45,10 @@
 #include <util/translation.h>
 #include <validationinterface.h>
 #include <warnings.h>
+
+#include <masternode/masternodeman.h>
+#include <masternode/masternode-payments.h>
+#include <pos/kernel.h>
 
 #include <string>
 
@@ -2117,6 +2120,14 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
         return true;
     }
 
+    if (pindex->nHeight <= Params().GetConsensus().LastPoWBlock() && block.IsProofOfStake())
+        return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "ConnectBlock(): PoS period not active",
+                             "pos-early");
+
+    if (pindex->nHeight > Params().GetConsensus().LastPoWBlock() && block.IsProofOfWork())
+        return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "ConnectBlock(): PoW period ended",
+                             "pow-ended");
+
     nBlocksTotal++;
 
     uint256 hashProofOfStake = uint256();
@@ -2355,11 +2366,31 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
     LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs (%.2fms/blk)]\n", (unsigned)block.vtx.size(), MILLI * (nTime3 - nTime2), MILLI * (nTime3 - nTime2) / block.vtx.size(), nInputs <= 1 ? 0 : MILLI * (nTime3 - nTime2) / (nInputs-1), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
 
-    CAmount blockReward = nFees + GetBlockSubsidy(pindex->nHeight-1, chainparams.GetConsensus());
-    if (block.vtx[0]->GetValueOut() > blockReward) {
-        LogPrintf("ERROR: ConnectBlock(): coinbase pays too much (actual=%d vs limit=%d)\n", block.vtx[0]->GetValueOut(), blockReward);
+    // MERGE : MODIFIED TO CHECK MASTERNODE PAYMENTS AND SUPERBLOCKS //////////////////////////////////
+
+    CAmount nMoneySupplyPrev = pindex->pprev ? pindex->pprev->nMoneySupply : 0;
+    pindex->nMoneySupply = nMoneySupplyPrev + nValueOut - nValueIn;
+    pindex->nMint = pindex->nMoneySupply - nMoneySupplyPrev;
+
+    CAmount blockReward = nFees + GetBlockSubsidy(pindex->pprev->nHeight, chainparams.GetConsensus());
+    std::string strError = "";
+
+    CAmount nExpectedMint = blockReward;
+    if (block.IsProofOfWork())
+        nExpectedMint += nFees;
+
+    //Check that the block does not overmint
+    if (pindex->nMint > blockReward) {
+        LogPrintf("ERROR: ConnectBlock(MERGE): coinbase pays too much (actual=%d vs limit=%d)\n", block.vtx[0]->GetValueOut(), blockReward);
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cb-amount");
     }
+
+    if (!IsBlockPayeeValid(block, pindex->nHeight)) {
+        LogPrintf("ERROR: ConnectBlock(MERGE): couldn't find masternode or superblock payments");
+        return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cb-payee");
+    }
+
+    ////////////////////////////////// MERGE : MODIFIED TO CHECK MASTERNODE PAYMENTS AND SUPERBLOCKS //
 
     if (!control.Wait()) {
         LogPrintf("ERROR: %s: CheckQueue failed\n", __func__);
