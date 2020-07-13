@@ -176,7 +176,6 @@ public:
      */
     uint64_t randrange(uint64_t range) noexcept
     {
-        assert(range);
         --range;
         int bits = CountBits(range);
         while (true) {

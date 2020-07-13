@@ -83,7 +83,7 @@ public:
 
     bool Sign(std::string strSignKey);
     bool CheckSignature();
-    void Relay(CConnman* connman);
+    void Relay(CConnman& connman);
 };
 
 class CSporkManager {
@@ -96,9 +96,9 @@ public:
     using Executor = std::function<void(void)>;
     CSporkManager() {}
 
-    void ProcessSpork(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, CConnman* connman);
-    bool UpdateSpork(int nSporkID, int64_t nValue, CConnman* connman);
+    void ProcessSpork(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, CConnman& connman);
     void ExecuteSpork(int nSporkID, int nValue);
+    bool UpdateSpork(int nSporkID, int64_t nValue, CConnman& connman);
 
     bool IsSporkActive(int nSporkID);
     int64_t GetSporkValue(int nSporkID);

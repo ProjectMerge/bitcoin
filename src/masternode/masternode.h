@@ -301,7 +301,7 @@ public:
     bool CheckInputsAndAdd(int& nDos, CConnman& connman);
     bool Sign(CKey& keyCollateralAddress);
     bool VerifySignature();
-    void Relay(CConnman& connman);
+    void Relay(CConnman& connman) const;
     std::string GetOldStrMessage();
     std::string GetNewStrMessage();
 

@@ -101,7 +101,7 @@ public:
     bool Add(CMasternode& mn);
 
     /// Ask (source) node for mnb
-    void AskForMN(CNode* pnode, CTxIn& vin, CConnman& connman);
+    void AskForMN(CNode* pnode, CTxIn& outpoint, CConnman& connman);
 
     /// Check all Masternodes
     void Check();

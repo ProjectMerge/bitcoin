@@ -76,10 +76,6 @@ static const bool DEFAULT_UPNP = USE_UPNP;
 #else
 static const bool DEFAULT_UPNP = false;
 #endif
-/** The maximum number of entries in mapAskFor */
-static const size_t MAPASKFOR_MAX_SZ = MAX_INV_SZ;
-/** The maximum number of entries in setAskFor (larger due to getdata latency)*/
-static const size_t SETASKFOR_MAX_SZ = 2 * MAX_INV_SZ;
 /** The maximum number of peer connections to maintain. */
 static const unsigned int DEFAULT_MAX_PEER_CONNECTIONS = 125;
 /** The default for -maxuploadtarget. 0 = Unlimited */
@@ -94,8 +90,6 @@ static const int64_t DEFAULT_PEER_CONNECT_TIMEOUT = 60;
 static const bool DEFAULT_FORCEDNSSEED = false;
 static const size_t DEFAULT_MAXRECEIVEBUFFER = 5 * 1000;
 static const size_t DEFAULT_MAXSENDBUFFER    = 1 * 1000;
-
-void RelayInv(CInv &inv, const int minProtoVersion = PROTOCOL_VERSION);
 
 typedef int64_t NodeId;
 
@@ -123,6 +117,10 @@ struct CSerializedNetMsg
     std::string command;
 };
 
+struct CAllNodes {
+    bool operator() (const CNode*) const {return true;}
+};
+static constexpr CAllNodes AllNodes{};
 
 class NetEventsInterface;
 class CConnman
@@ -195,25 +193,45 @@ public:
     ~CConnman();
     bool Start(CScheduler& scheduler, const Options& options);
 
-    void StopThreads();
-    void StopNodes();
-    void Stop()
-    {
-        StopThreads();
-        StopNodes();
-    };
+    // TODO: Remove NO_THREAD_SAFETY_ANALYSIS. Lock cs_vNodes before reading the variable vNodes.
+    //
+    // When removing NO_THREAD_SAFETY_ANALYSIS be aware of the following lock order requirements:
+    // * CheckForStaleTipAndEvictPeers locks cs_main before indirectly calling GetExtraOutboundCount
+    //   which locks cs_vNodes.
+    // * ProcessMessage locks cs_main and g_cs_orphans before indirectly calling ForEachNode which
+    //   locks cs_vNodes.
+    //
+    // Thus the implicit locking order requirement is: (1) cs_main, (2) g_cs_orphans, (3) cs_vNodes.
+    void Stop() NO_THREAD_SAFETY_ANALYSIS;
 
-    void RelayInv(CInv& inv);
     void Interrupt();
     bool GetNetworkActive() const { return fNetworkActive; };
     bool GetUseAddrmanOutgoing() const { return m_use_addrman_outgoing; };
     void SetNetworkActive(bool active);
-    void OpenNetworkConnection(const CAddress& addrConnect, bool fCountFailure, CSemaphoreGrant *grantOutbound = nullptr, const char *strDest = nullptr, bool fOneShot = false, bool fFeeler = false, bool manual_connection = false, bool fConnectToMasternode = false);
+    void OpenMasternodeConnection(const CAddress& addrConnect);
+    void OpenNetworkConnection(const CAddress& addrConnect, bool fCountFailure, CSemaphoreGrant *grantOutbound = nullptr, const char *strDest = nullptr, bool fOneShot = false, bool fFeeler = false, bool manual_connection = false, bool block_relay_only = false, bool fConnectToMasternode = false);
+
     bool CheckIncomingNonce(uint64_t nonce);
-    CNode *OpenMasternodeConnection(const CAddress &addrConnect);
+
     bool ForNode(NodeId id, std::function<bool(CNode* pnode)> func);
 
     void PushMessage(CNode* pnode, CSerializedNetMsg&& msg);
+
+    bool ForNode(const CService& addr, std::function<bool(const CNode* pnode)> cond, std::function<bool(CNode* pnode)> func);
+
+    struct CFullyConnectedOnly {
+        bool operator() (const CNode* pnode) const {
+            return NodeFullyConnected(pnode);
+        }
+    };
+
+    static constexpr CFullyConnectedOnly FullyConnectedOnly{};
+
+    template<typename Callable>
+    bool ForNode(const CService& addr, Callable&& func)
+    {
+        return ForNode(addr, FullyConnectedOnly, func);
+    }
 
     template<typename Callable>
     void ForEachNode(Callable&& func)
@@ -257,6 +275,11 @@ public:
         post();
     };
 
+    // Helpers for masternode
+    std::vector<CNode*> CopyNodeVector(std::function<bool(const CNode* pnode)> cond);
+    void ReleaseNodeVector(const std::vector<CNode*>& vecNodes);
+    void AddNewAddress(const CAddress& addr, const CAddress& addrFrom, int64_t nTimePenalty = 0);
+
     // Addrman functions
     size_t GetAddressCount() const;
     void SetServices(const CService &addr, ServiceFlags nServices);
@@ -279,6 +302,7 @@ public:
 
     bool AddNode(const std::string& node);
     bool RemoveAddedNode(const std::string& node);
+    bool AddPendingMasternode(const CService& addr);
     std::vector<AddedNodeInfo> GetAddedNodeInfo();
 
     size_t GetNodeCount(NumConnections num);
@@ -330,15 +354,22 @@ public:
 
     void WakeMessageHandler();
 
-    std::vector<CNode*> CopyNodeVector();
-    void ReleaseNodeVector(const std::vector<CNode*>& vecNodes);
-
     /** Attempts to obfuscate tx time through exponentially distributed emitting.
         Works assuming that a single interval is used.
         Variable intervals will result in privacy decrease.
     */
     int64_t PoissonNextSendInbound(int64_t now, int average_interval_seconds);
+    bool IsMasternodeOrDisconnectRequested(const CService& addr);
+    bool IsConnected(const CService& addr, std::function<bool(const CNode* pnode)> cond)
+    {
+        return ForNode(addr, cond, [](CNode* pnode){
+            return true;
+        });
+    }
+    void RelayInv(CInv &inv);
+
     void RelayTransaction(const CTransaction& tx);
+
     void SetAsmap(std::vector<bool> asmap) { addrman.m_asmap = std::move(asmap); }
 
 private:
@@ -351,14 +382,6 @@ private:
         NetPermissionFlags m_permissions;
     };
 
-    CNode *OpenNetworkConnectionImpl(const CAddress& addrConnect,
-                                     bool fCountFailure,
-                                     CSemaphoreGrant *grantOutbound = nullptr,
-                                     const char *strDest = nullptr,
-                                     bool fOneShot = false,
-                                     bool fFeeler = false,
-                                     bool manual_connection = false,
-                                     bool fAllowLocal = false);
     bool BindListenPort(const CService& bindAddr, std::string& strError, NetPermissionFlags permissions);
     bool Bind(const CService& addr, unsigned int flags, NetPermissionFlags permissions);
     bool InitBinds(const std::vector<CService>& binds, const std::vector<NetWhitebindPermissions>& whiteBinds);
@@ -433,6 +456,8 @@ private:
     RecursiveMutex cs_vOneShots;
     std::vector<std::string> vAddedNodes GUARDED_BY(cs_vAddedNodes);
     RecursiveMutex cs_vAddedNodes;
+    std::vector<CService> vPendingMasternodes GUARDED_BY(cs_vPendingMasternodes);
+    RecursiveMutex cs_vPendingMasternodes;
     std::vector<CNode*> vNodes GUARDED_BY(cs_vNodes);
     std::list<CNode*> vNodesDisconnected;
     mutable RecursiveMutex cs_vNodes;
@@ -452,9 +477,8 @@ private:
      * \sa CNode::nLocalServices
      */
     ServiceFlags nLocalServices;
-
-    std::unique_ptr<CSemaphore> semOutbound;
     std::unique_ptr<CSemaphore> semMasternodeOutbound;
+    std::unique_ptr<CSemaphore> semOutbound;
     std::unique_ptr<CSemaphore> semAddnode;
     int nMaxConnections;
 
@@ -501,7 +525,6 @@ private:
     std::atomic<int64_t> m_next_send_inv_to_incoming{0};
 
     friend struct CConnmanTest;
-    friend struct ConnmanTestMsg;
 };
 void Discover();
 void StartMapPort();
@@ -579,12 +602,6 @@ CAddress GetLocalAddress(const CNetAddr *paddrPeer, ServiceFlags nLocalServices)
 extern bool fDiscover;
 extern bool fListen;
 extern bool g_relay_txes;
-extern std::vector<CNode*> vNodes;
-
-extern std::map<CInv, CDataStream> mapRelayDash;
-extern std::deque<std::pair<int64_t, CInv> > vRelayExpirationDash;
-extern RecursiveMutex cs_mapRelayDash;
-extern limitedmap<uint256, int64_t> mapAlreadyAskedFor;
 
 /** Subversion as sent to the P2P network in `version` messages */
 extern std::string strSubVersion;
@@ -747,7 +764,6 @@ public:
 class CNode
 {
     friend class CConnman;
-    friend struct ConnmanTestMsg;
 
 public:
     std::unique_ptr<TransportDeserializer> m_deserializer;
@@ -763,7 +779,7 @@ public:
     RecursiveMutex cs_vSend;
     RecursiveMutex cs_hSocket;
     RecursiveMutex cs_vRecv;
-    bool fNetworkNode{false};
+
     RecursiveMutex cs_vProcessMsg;
     std::list<CNetMessage> vProcessMsg GUARDED_BY(cs_vProcessMsg);
     size_t nProcessQueueSize{0};
@@ -806,17 +822,15 @@ public:
     // next time DisconnectNodes() runs
     std::atomic_bool fDisconnect{false};
     bool fSentAddr{false};
-    bool fMasternode{false};
     CSemaphoreGrant grantOutbound;
-    CSemaphoreGrant grantMasternodeOutbound;
-    mutable RecursiveMutex cs_filter;
-    std::unique_ptr<CBloomFilter> pfilter PT_GUARDED_BY(cs_filter);
     std::atomic<int> nRefCount{0};
 
     const uint64_t nKeyedNetGroup;
     std::atomic_bool fPauseRecv{false};
     std::atomic_bool fPauseSend{false};
 
+    bool fMasternode{false};
+    CSemaphoreGrant grantMasternodeOutbound;
 protected:
     mapMsgCmdSize mapSendBytesPerMsgCmd;
     mapMsgCmdSize mapRecvBytesPerMsgCmd GUARDED_BY(cs_vRecv);
@@ -824,7 +838,6 @@ protected:
 public:
     uint256 hashContinue;
     std::atomic<int> nStartingHeight{-1};
-    std::vector<CInv> vInventoryToSend;
 
     // flood relay
     std::vector<CAddress> vAddrToSend;
@@ -838,11 +851,9 @@ public:
     // List of block ids we still have announce.
     // There is no final sorting before sending, as they are always sent immediately
     // and in the order requested.
+    std::vector<CInv> vInventoryOtherToSend;
     std::vector<uint256> vInventoryBlockToSend GUARDED_BY(cs_inventory);
     RecursiveMutex cs_inventory;
-    std::set<uint256> setAskFor;
-    std::multimap<int64_t, CInv> mapAskFor;
-    int64_t nNextInvSend;
 
     struct TxRelay {
         TxRelay() { pfilter = MakeUnique<CBloomFilter>(); }
@@ -1023,6 +1034,9 @@ public:
         } else if (inv.type == MSG_BLOCK) {
             LOCK(cs_inventory);
             vInventoryBlockToSend.push_back(inv.hash);
+        } else {
+            LogPrint(BCLog::NET, "PushOtherInventory --  inv: %s peer=%d\n", inv.ToString(), id);
+            vInventoryOtherToSend.push_back(inv);
         }
     }
 
@@ -1031,10 +1045,6 @@ public:
         LOCK(cs_inventory);
         vBlockHashesToAnnounce.push_back(hash);
     }
-
-    void AskFor(const CInv& inv);
-
-    void RemoveAskFor(const uint256& hash);
 
     void CloseSocketDisconnect();
 

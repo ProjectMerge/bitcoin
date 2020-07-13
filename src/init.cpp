@@ -218,11 +218,7 @@ void Shutdown(NodeContext& node)
     //   EraseOrphansFor, which locks g_cs_orphans.
     //
     // Thus the implicit locking order requirement is: (1) cs_main, (2) g_cs_orphans, (3) cs_vNodes.
-    if (node.connman) {
-        node.connman->StopThreads();
-        LOCK2(::cs_main, ::g_cs_orphans);
-        node.connman->StopNodes();
-    }
+    if (node.connman) node.connman->Stop();
 
     StopTorControl();
 
@@ -1898,7 +1894,9 @@ bool AppInitMain(NodeContext& node)
         }
     }
 
-    // ********************************************************* Step 11c: update block tip in Dash modules
+    // ********************************************************* Step 12: start node
+
+    threadGroup.create_thread(std::bind(ThreadMasternodePool));
 
     int chain_active_height;
 

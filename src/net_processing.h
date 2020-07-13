@@ -91,8 +91,12 @@ struct CNodeStateStats {
 /** Get statistics from node state */
 bool GetNodeStateStats(NodeId nodeid, CNodeStateStats &stats);
 
+void RelayTransaction(const uint256& txid, const CConnman& connman);
+
 /** Relay transaction to every node */
-void RelayTransaction(const uint256&, const CConnman& connman);
+extern bool IsAnnouncementAllowed(const CNode* pfrom, const int requestedAnnouncements, const uint256& hash)  EXCLUSIVE_LOCKS_REQUIRED(cs_main);
+extern void RequestInv(const CNode* pfrom, const CInv &inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
+extern void EraseInvRequest(const CNode* pfrom, const uint256& hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
 /** Increase a node's misbehavior score. */
 void Misbehaving(NodeId nodeid, int howmuch, const std::string& message="") EXCLUSIVE_LOCKS_REQUIRED(cs_main);

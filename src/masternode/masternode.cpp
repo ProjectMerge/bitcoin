@@ -4,19 +4,11 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <addrman.h>
 #include <chainparams.h>
-#include <consensus/validation.h>
-#include <key_io.h>
-#include <masternode/masternode-helpers.h>
 #include <masternode/masternode-payments.h>
 #include <masternode/masternode-sync.h>
-#include <masternode/masternode.h>
 #include <masternode/masternodeman.h>
 #include <shutdown.h>
-#include <sync.h>
-#include <util/system.h>
-#include <validation.h>
 
 #include <boost/lexical_cast.hpp>
 
@@ -511,6 +503,13 @@ bool CMasternodeBroadcast::CheckAndUpdate(int& nDos, CConnman& connman)
         return false;
     }
 
+    std::string errorMessage = "";
+    if (!masternodeSigner.VerifyMessage(pubKeyCollateralAddress, sig, strMessage, errorMessage)) {
+        LogPrint(BCLog::MASTERNODE, "mnb - Got bad Masternode address signature\n");
+        nDos = 100;
+        return false;
+    }
+
     //search existing Masternode list, this is where we update existing Masternodes with new mnb broadcasts
     CMasternode* pmn = mnodeman.Find(vin);
 
@@ -610,8 +609,14 @@ bool CMasternodeBroadcast::CheckInputsAndAdd(int& nDoS, CConnman& connman)
     return true;
 }
 
-void CMasternodeBroadcast::Relay(CConnman& connman)
+void CMasternodeBroadcast::Relay(CConnman& connman) const
 {
+    // Do not relay until fully synced
+    if(!masternodeSync.IsSynced()) {
+        LogPrint(BCLog::MASTERNODE, "CMasternodeBroadcast::Relay -- won't relay until fully synced\n");
+        return;
+    }
+
     CInv inv(MSG_MASTERNODE_ANNOUNCE, GetHash());
     connman.ForEachNode([&inv](CNode* pnode) {
         pnode->PushInventory(inv);
@@ -711,7 +716,8 @@ bool CMasternodePing::VerifySignature(CPubKey& pubKeyMasternode, int& nDos)
 
     if (!masternodeSigner.VerifyMessage(pubKeyMasternode, vchSig, strMessage, errorMessage)) {
         nDos = 33;
-        return error("CMasternodePing::VerifySignature - Got bad Masternode ping signature %s Error: %s", vin.ToString(), errorMessage);
+        LogPrint(BCLog::MASTERNODE, "CMasternodePing::VerifySignature - Got bad Masternode ping signature %s Error: %s", vin.ToString(), errorMessage);
+        return false;
     }
     return true;
 }

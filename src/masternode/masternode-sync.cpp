@@ -5,19 +5,13 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 // clang-format off
-#include <validation.h>
 #include <masternode/activemasternode.h>
 #include <masternode/masternode-sync.h>
 #include <masternode/masternode-payments.h>
-#include <masternode/masternode.h>
 #include <masternode/masternodeman.h>
 #include <masternode/netfulfilledman.h>
 #include <masternode/spork.h>
-#include <net.h>
 #include <netmessagemaker.h>
-#include <sync.h>
-#include <util/system.h>
-#include <addrman.h>
 // clang-format on
 
 class CMasternodeSync;
@@ -31,11 +25,6 @@ CMasternodeSync::CMasternodeSync()
 bool CMasternodeSync::IsSynced()
 {
     return RequestedMasternodeAssets == MASTERNODE_SYNC_FINISHED;
-}
-
-bool CMasternodeSync::IsMasternodeListSynced()
-{
-    return RequestedMasternodeAssets > MASTERNODE_SYNC_LIST;
 }
 
 bool CMasternodeSync::IsBlockchainSynced()
@@ -61,7 +50,7 @@ bool CMasternodeSync::IsBlockchainSynced()
         return false;
 
     CBlockIndex* pindex = ::ChainActive().Tip();
-    if (pindex == NULL)
+    if (!pindex)
         return false;
 
     if (pindex->nTime + 60 * 60 < GetTime())
@@ -74,8 +63,6 @@ bool CMasternodeSync::IsBlockchainSynced()
 
 void CMasternodeSync::Reset()
 {
-    fBlockchainSynced = false;
-    lastProcess = 0;
     lastMasternodeList = 0;
     lastMasternodeWinner = 0;
     lastBudgetItem = 0;
@@ -123,12 +110,11 @@ void CMasternodeSync::AddedMasternodeWinner(uint256 hash)
     }
 }
 
-void CMasternodeSync::GetNextAsset(CConnman& connman)
+void CMasternodeSync::GetNextAsset()
 {
     switch (RequestedMasternodeAssets) {
     case (MASTERNODE_SYNC_INITIAL):
     case (MASTERNODE_SYNC_FAILED): // should never be used here actually, use Reset() instead
-        ClearFulfilledRequest(connman);
         RequestedMasternodeAssets = MASTERNODE_SYNC_SPORKS;
         break;
     case (MASTERNODE_SYNC_SPORKS):
@@ -165,9 +151,9 @@ std::string CMasternodeSync::GetSyncStatus()
     return "";
 }
 
-void CMasternodeSync::ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv)
+void CMasternodeSync::ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, CConnman& connman)
 {
-    if (strCommand == "ssc" || strCommand == NetMsgType::SYNCSTATUSCOUNT) {
+    if (strCommand == NetMsgType::SYNCSTATUSCOUNT) {
 
         if (IsSynced())
             return;
@@ -193,15 +179,6 @@ void CMasternodeSync::ProcessMessage(CNode* pfrom, const std::string& strCommand
 
         LogPrintf("CMasternodeSync:ProcessMessage - ssc - got inventory count %d %d\n", nItemID, nCount);
     }
-}
-
-void CMasternodeSync::ClearFulfilledRequest(CConnman& connman)
-{
-    connman.ForEachNode([](CNode* pnode) {
-        netfulfilledman.RemoveFulfilledRequest(pnode->addr, "getspork");
-        netfulfilledman.RemoveFulfilledRequest(pnode->addr, "mnsync");
-        netfulfilledman.RemoveFulfilledRequest(pnode->addr, "mnwsync");
-    });
 }
 
 void CMasternodeSync::Process(CConnman& connman)
@@ -231,19 +208,22 @@ void CMasternodeSync::Process(CConnman& connman)
     uiInterface.NotifyAdditionalDataSyncProgressChanged(nSyncProgress);
 
     if (RequestedMasternodeAssets == MASTERNODE_SYNC_INITIAL)
-        GetNextAsset(connman);
+        GetNextAsset();
 
-    //! should be a lock here, to investigate..
-    std::vector<CNode*> vNodesCopy = connman.CopyNodeVector();
-    for (CNode* pnode : vNodesCopy) {
-        //set to synced
+    if (!IsBlockchainSynced() && RequestedMasternodeAssets > MASTERNODE_SYNC_SPORKS)
+        return;
+
+    std::vector<CNode*> vNodesCopy = connman.CopyNodeVector(CConnman::FullyConnectedOnly);
+
+    for (auto& pnode : vNodesCopy)
+    {
         if (RequestedMasternodeAssets == MASTERNODE_SYNC_SPORKS) {
             if (netfulfilledman.HasFulfilledRequest(pnode->addr, "getspork"))
                 continue;
             netfulfilledman.AddFulfilledRequest(pnode->addr, "getsporks");
             connman.PushMessage(pnode, CNetMsgMaker(pnode->GetSendVersion()).Make(NetMsgType::GETSPORKS));
             if (RequestedMasternodeAttempt >= 2)
-                GetNextAsset(connman);
+                GetNextAsset();
             RequestedMasternodeAttempt++;
             return;
         }
@@ -252,7 +232,7 @@ void CMasternodeSync::Process(CConnman& connman)
             if (RequestedMasternodeAssets == MASTERNODE_SYNC_LIST) {
                 LogPrintf("CMasternodeSync::Process() - lastMasternodeList %lld (GetTime() - MASTERNODE_SYNC_TIMEOUT) %lld\n", lastMasternodeList, GetTime() - MASTERNODE_SYNC_TIMEOUT);
                 if (lastMasternodeList > 0 && lastMasternodeList < GetTime() - MASTERNODE_SYNC_TIMEOUT * 2 && RequestedMasternodeAttempt >= MASTERNODE_SYNC_THRESHOLD) {
-                    GetNextAsset(connman);
+                    GetNextAsset();
                     return;
                 }
                 if (netfulfilledman.HasFulfilledRequest(pnode->addr, "mnsync"))
@@ -268,7 +248,7 @@ void CMasternodeSync::Process(CConnman& connman)
                         lastFailure = GetTime();
                         nCountFailures++;
                     } else {
-                        GetNextAsset(connman);
+                        GetNextAsset();
                     }
                     return;
                 }
@@ -283,7 +263,7 @@ void CMasternodeSync::Process(CConnman& connman)
 
             if (RequestedMasternodeAssets == MASTERNODE_SYNC_MNW) {
                 if (lastMasternodeWinner > 0 && lastMasternodeWinner < GetTime() - MASTERNODE_SYNC_TIMEOUT * 2 && RequestedMasternodeAttempt >= MASTERNODE_SYNC_THRESHOLD) {
-                    GetNextAsset(connman);
+                    GetNextAsset();
                     return;
                 }
 
@@ -300,7 +280,7 @@ void CMasternodeSync::Process(CConnman& connman)
                         lastFailure = GetTime();
                         nCountFailures++;
                     } else {
-                        GetNextAsset(connman);
+                        GetNextAsset();
                     }
                     return;
                 }
@@ -321,7 +301,7 @@ void CMasternodeSync::Process(CConnman& connman)
                 // We'll start rejecting votes if we accidentally get set as synced too soon
                 if (lastBudgetItem > 0 && lastBudgetItem < GetTime() - MASTERNODE_SYNC_TIMEOUT * 2 && RequestedMasternodeAttempt >= MASTERNODE_SYNC_THRESHOLD) {
                     // Hasn't received a new item in the last five seconds, so we'll move to the
-                    GetNextAsset(connman);
+                    GetNextAsset();
 
                     // Try to activate our masternode if possible
                     activeMasternode.ManageStatus(connman);
@@ -332,7 +312,7 @@ void CMasternodeSync::Process(CConnman& connman)
                 // timeout
                 if ((RequestedMasternodeAttempt >= MASTERNODE_SYNC_THRESHOLD * 3 || GetTime() - nAssetSyncStarted > MASTERNODE_SYNC_TIMEOUT * 5)) {
                     // maybe there is no budgets at all, so just finish syncing
-                    GetNextAsset(connman);
+                    GetNextAsset();
                     activeMasternode.ManageStatus(connman);
                     return;
                 }
@@ -344,7 +324,7 @@ void CMasternodeSync::Process(CConnman& connman)
                 if (RequestedMasternodeAttempt >= MASTERNODE_SYNC_THRESHOLD * 3)
                     return;
 
-                uint256 n;
+                uint256 n = uint256();
                 connman.PushMessage(pnode, CNetMsgMaker(pnode->GetSendVersion()).Make(NetMsgType::BUDGETVOTESYNC, n));
                 RequestedMasternodeAttempt++;
 

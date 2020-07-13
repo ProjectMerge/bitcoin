@@ -4,11 +4,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <base58.h>
 #include <chainparams.h>
 #include <masternode/masternodeconfig.h>
-#include <netbase.h>
-#include <ui_interface.h>
 #include <util/strencodings.h>
 #include <util/system.h>
 

@@ -6,24 +6,13 @@
 
 #include <masternode/activemasternode.h>
 
-#include <chainparams.h>
 #include <key_io.h>
-#include <masternode/masternode-helpers.h>
 #include <masternode/masternode-sync.h>
-#include <masternode/masternode.h>
 #include <masternode/masternodeconfig.h>
 #include <masternode/masternodeman.h>
-#include <masternode/spork.h>
-#include <net.h>
-#include <netbase.h>
-#include <protocol.h>
-#include <util/system.h>
-#include <validation.h>
 #include <wallet/coincontrol.h>
-#include <wallet/wallet.h>
 #include <wallet/rpcwallet.h>
 
-#include <protocol.h>
 
 CActiveMasternode activeMasternode;
 
@@ -334,24 +323,23 @@ bool CActiveMasternode::GetMasterNodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secr
 // Extract Masternode vin information from output
 bool CActiveMasternode::GetVinFromOutput(COutput out, CTxIn& vin, CPubKey& pubkey, CKey& secretKey)
 {
-    // wait for reindex and/or import to finish
-    if (fImporting || fReindex)
-        return false;
-
     CScript pubScript;
 
     vin = CTxIn(out.tx->GetHash(), out.i);
     pubScript = out.tx->tx->vout[out.i].scriptPubKey; // the inputs PubKey
 
     CTxDestination address1;
-    ExtractDestination(pubScript, address1);
+    if (!ExtractDestination(pubScript, address1)) {
+        LogPrint(BCLog::MASTERNODE, "CActiveMasternode::GetVinFromOutput - Address does not refer to a key\n");
+        return false;
+    }
     std::string address2 = EncodeDestination(address1);
 
     CKeyID keyID;
     auto m_wallet = GetMainWallet();
     LegacyScriptPubKeyMan& spk_man = EnsureLegacyScriptPubKeyMan(*m_wallet);
     if (!spk_man.GetKey(keyID, secretKey)) {
-        LogPrint(BCLog::MASTERNODE, "CActiveMasternode::GetMasterNodeVin - Private key for address is not known\n");
+        LogPrint(BCLog::MASTERNODE, "CActiveMasternode::GetVinFromOutput - Private key for address is not known\n");
         return false;
     }
 

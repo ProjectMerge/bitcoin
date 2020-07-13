@@ -4,13 +4,13 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <chainparams.h>
 #include <key_io.h>
 #include <masternode/masternode-helpers.h>
 #include <masternode/spork.h>
 #include <net_processing.h>
 #include <netmessagemaker.h>
-#include <validation.h>
+#include <node/context.h>
+#include <rpc/blockchain.h>
 
 #include <boost/lexical_cast.hpp>
 
@@ -31,21 +31,20 @@ static const int64_t SPORK_13_ENABLE_SUPERBLOCKS_DEFAULT = 4070908800;
 static const int64_t SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2_DEFAULT = 4070908800;
 }
 
-void CSporkManager::ProcessSpork(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, CConnman* connman)
+void CSporkManager::ProcessSpork(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, CConnman& connman)
 {
     if (strCommand == NetMsgType::SPORK) {
 
         CSporkMessage spork;
         vRecv >> spork;
 
-        uint256 hash = spork.GetHash();
+        const uint256 &hash = spork.GetHash();
 
         std::string strLogMsg;
         {
             LOCK(cs_main);
-            pfrom->setAskFor.erase(hash);
-            if (!::ChainActive().Tip())
-                return;
+            EraseInvRequest(pfrom, hash);
+            if(!::ChainActive().Tip()) return;
             strLogMsg = strprintf("SPORK -- hash: %s id: %d value: %10d bestHeight: %d peer=%d",
                 hash.ToString(), spork.nSporkID,
                 spork.nValue, ::ChainActive().Height(),
@@ -60,11 +59,12 @@ void CSporkManager::ProcessSpork(CNode* pfrom, const std::string& strCommand, CD
                 LogPrint(BCLog::SPORK, "%s updated\n", strLogMsg);
             }
         } else {
-            LogPrint(BCLog::MASTERNODE, "%s %s new\n", __func__, strLogMsg);
+            LogPrint(BCLog::SPORK, "%s new\n", strLogMsg);
         }
 
-        if (!spork.CheckSignature()) {
-            LogPrint(BCLog::SPORK, "ProcessSpork -- invalid signature\n");
+        if(!spork.CheckSignature()) {
+            LOCK(cs_main);
+            LogPrint(BCLog::SPORK, "CSporkManager::ProcessSpork -- ERROR: invalid signature\n");
             //Misbehaving(pfrom->GetId(), 100);
             return;
         }
@@ -77,23 +77,23 @@ void CSporkManager::ProcessSpork(CNode* pfrom, const std::string& strCommand, CD
         ExecuteSpork(spork.nSporkID, spork.nValue);
 
     } else if (strCommand == NetMsgType::GETSPORKS) {
-
         std::map<int, CSporkMessage>::iterator it = mapSporksActive.begin();
 
         const CNetMsgMaker msgMaker(pfrom->GetSendVersion());
 
         while (it != mapSporksActive.end()) {
-            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::SPORK, it->second));
+            connman.PushMessage(pfrom, msgMaker.Make(NetMsgType::SPORK, it->second));
             it++;
         }
     }
+
 }
 
 void CSporkManager::ExecuteSpork(int nSporkID, int nValue)
 {
 }
 
-bool CSporkManager::UpdateSpork(int nSporkID, int64_t nValue, CConnman* connman)
+bool CSporkManager::UpdateSpork(int nSporkID, int64_t nValue, CConnman& connman)
 {
     CSporkMessage spork = CSporkMessage(nSporkID, nValue, GetAdjustedTime());
 
@@ -242,10 +242,10 @@ bool CSporkMessage::CheckSignature()
     return true;
 }
 
-void CSporkMessage::Relay(CConnman* connman)
+void CSporkMessage::Relay(CConnman& connman)
 {
     CInv inv(MSG_SPORK, GetHash());
-    connman->ForEachNode([&inv](CNode* pnode) {
+    connman.ForEachNode([&inv](CNode* pnode) {
         pnode->PushInventory(inv);
     });
 }

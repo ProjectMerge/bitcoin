@@ -210,7 +210,7 @@ CAddress::CAddress(CService ipIn, ServiceFlags nServicesIn) : CService(ipIn)
 
 void CAddress::Init()
 {
-    nServices = NODE_NONE;
+    nServices = NODE_NETWORK;
     nTime = 100000000;
 }
 

@@ -4,20 +4,13 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <addrman.h>
-#include <boost/filesystem.hpp>
-#include <chainparams.h>
 #include <key_io.h>
 #include <masternode/masternode-payments.h>
 #include <masternode/masternode-sync.h>
 #include <masternode/masternodeman.h>
 #include <masternode/netfulfilledman.h>
-#include <masternode/spork.h>
 #include <netmessagemaker.h>
-#include <sync.h>
 #include <util/moneystr.h>
-#include <util/system.h>
-#include <validation.h>
 
 /** Object for who's going to get paid on which blocks */
 CMasternodePayments masternodePayments;
