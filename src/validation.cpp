@@ -6,6 +6,7 @@
 #include <validation.h>
 
 #include <arith_uint256.h>
+#include <blocksignature.h>
 #include <chain.h>
 #include <chainparams.h>
 #include <checkqueue.h>
@@ -4056,6 +4057,9 @@ bool CChainState::AcceptBlock(const std::shared_ptr<const CBlock>& pblock, Block
 bool ProcessNewBlock(const CChainParams& chainparams, const std::shared_ptr<const CBlock> pblock, bool fForceProcessing, bool *fNewBlock)
 {
     AssertLockNotHeld(cs_main);
+
+    if (!CheckBlockSignature(*pblock))
+        return error("%s : bad proof-of-stake block signature", __func__);
 
     {
         CBlockIndex *pindex = nullptr;
