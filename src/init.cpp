@@ -1986,5 +1986,9 @@ bool AppInitMain(NodeContext& node)
         banman->DumpBanlist();
     }, DUMP_BANS_INTERVAL);
 
+    if(gArgs.GetBoolArg("-staking", true)) {
+        threadGroup.create_thread(boost::bind(&ThreadStakeMinter, boost::ref(chainparams), boost::ref(*g_rpc_node->connman)));
+    }
+
     return true;
 }
