@@ -38,6 +38,10 @@ class WalletFrame;
 class WalletModel;
 class HelpMessageDialog;
 class ModalOverlay;
+class MasternodeList;
+class TitleBar;
+class NavigationBar;
+class QtumVersionChecker;
 
 namespace interfaces {
 class Handler;
@@ -50,6 +54,7 @@ class QComboBox;
 class QMenu;
 class QProgressBar;
 class QProgressDialog;
+class QDockWidget;
 QT_END_NAMESPACE
 
 namespace GUIUtil {
@@ -88,6 +93,7 @@ public:
     void removeWallet(WalletModel* walletModel);
     void removeAllWallets();
 #endif // ENABLE_WALLET
+    void setTabBarInfo(QObject* into);
     bool enableWallet = false;
 
     /** Get the tray icon status.
@@ -97,6 +103,8 @@ public:
 
     /** Disconnect core signals from GUI client */
     void unsubscribeFromCoreSignals();
+
+    WalletFrame *getWalletFrame() const;
 
 protected:
     void changeEvent(QEvent *e);
@@ -115,6 +123,7 @@ private:
     WalletFrame* walletFrame = nullptr;
 
     UnitDisplayStatusBarControl* unitDisplayControl = nullptr;
+    QLabel* labelStakingIcon = nullptr;
     QLabel* labelWalletEncryptionIcon = nullptr;
     QLabel* labelWalletHDStatusIcon = nullptr;
     GUIUtil::ClickableLabel* labelProxyIcon = nullptr;
@@ -126,8 +135,11 @@ private:
 
     QMenuBar* appMenuBar = nullptr;
     QToolBar* appToolBar = nullptr;
+    TitleBar *appTitleBar = nullptr;
+    NavigationBar *appNavigationBar = nullptr;
     QAction* overviewAction = nullptr;
     QAction* historyAction = nullptr;
+    QAction* masternodeAction = nullptr;
     QAction* quitAction = nullptr;
     QAction* sendCoinsAction = nullptr;
     QAction* sendCoinsMenuAction = nullptr;
@@ -147,6 +159,12 @@ private:
     QAction* openRPCConsoleAction = nullptr;
     QAction* openAction = nullptr;
     QAction* showHelpMessageAction = nullptr;
+    QAction *openConfEditorAction = nullptr;
+    QAction *openMNConfEditorAction = nullptr;
+    QAction* stakeAction = nullptr;
+    QAction *restoreWalletAction = nullptr;
+    QAction *unlockWalletAction = nullptr;
+    QAction *lockWalletAction = nullptr;
     QAction* m_create_wallet_action{nullptr};
     QAction* m_open_wallet_action{nullptr};
     QMenu* m_open_wallet_menu{nullptr};
@@ -163,6 +181,8 @@ private:
     RPCConsole* rpcConsole = nullptr;
     HelpMessageDialog* helpMessageDialog = nullptr;
     ModalOverlay* modalOverlay = nullptr;
+    ModalOverlay *modalBackupOverlay = nullptr;
+    QtumVersionChecker *mergeVersionChecker = nullptr;
 
 #ifdef Q_OS_MAC
     CAppNapInhibitor* m_app_nap_inhibitor = nullptr;
@@ -181,6 +201,8 @@ private:
     void createMenuBar();
     /** Create the toolbars */
     void createToolBars();
+    /** Create title bar */
+    void createTitleBars();
     /** Create system tray icon and notification */
     void createTrayIcon();
     /** Create system tray menu (or setup the dock menu) */
@@ -199,6 +221,9 @@ private:
 
     /** Open the OptionsDialog on the specified tab index */
     void openOptionsDialogWithTab(OptionsDialog::Tab tab);
+
+    /** Add docking windows to the main windows */
+    void addDockWindows(Qt::DockWidgetArea area, QWidget* widget);
 
 Q_SIGNALS:
     /** Signal raised when a URI was entered or dragged to the GUI */
@@ -231,6 +256,7 @@ public Q_SLOTS:
     /** Set the UI status indicators based on the currently selected wallet.
     */
     void updateWalletStatus();
+    void setStakingStatus();
 
 private:
     /** Set the encryption status as shown in the UI.
@@ -263,11 +289,12 @@ public Q_SLOTS:
     void gotoOverviewPage();
     /** Switch to history (transactions) page */
     void gotoHistoryPage();
+    /** Switch to masternode page */
+    void gotoMasternodePage();
     /** Switch to receive coins page */
     void gotoReceiveCoinsPage();
     /** Switch to send coins page */
     void gotoSendCoinsPage(QString addr = "");
-
     /** Show Sign/Verify Message dialog and switch to sign message tab */
     void gotoSignMessageTab(QString addr = "");
     /** Show Sign/Verify Message dialog and switch to verify message tab */
@@ -286,6 +313,10 @@ public Q_SLOTS:
     void showDebugWindowActivateConsole();
     /** Show help message dialog */
     void showHelpMessageClicked();
+    /** Open external (default) editor with dash.conf */
+    void showConfEditor();
+    /** Open external (default) editor with masternode.conf */
+    void showMNConfEditor();
 #ifndef Q_OS_MAC
     /** Handle tray icon clicked */
     void trayIconActivated(QSystemTrayIcon::ActivationReason reason);
@@ -328,6 +359,10 @@ protected:
 private:
     OptionsModel *optionsModel;
     QMenu* menu;
+    int menuMargin;
+    int iconHeight;
+    int iconWidth;
+    QString iconPath;
 
     /** Shows context menu with Display Unit options by the mouse coordinates */
     void onDisplayUnitsClicked(const QPoint& point);

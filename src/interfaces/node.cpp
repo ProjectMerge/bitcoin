@@ -203,6 +203,7 @@ public:
         return GuessVerificationProgress(Params().TxData(), tip);
     }
     bool isInitialBlockDownload() override { return ::ChainstateActive().IsInitialBlockDownload(); }
+    bool isAddressTypeSet() override { return !::gArgs.GetArg("-addresstype", "").empty(); }
     bool getReindex() override { return ::fReindex; }
     bool getImporting() override { return ::fImporting; }
     void setNetworkActive(bool active) override
@@ -257,6 +258,16 @@ public:
             wallets.emplace_back(MakeWallet(wallet));
         }
         return wallets;
+    }
+    void getSyncInfo(int& numBlocks, bool& isSyncing) override
+    {
+        LOCK(::cs_main);
+        // Get node synchronization information with minimal locks
+        numBlocks = ::ChainActive().Height();
+        int64_t blockTime = ::ChainActive().Tip() ? ::ChainActive().Tip()->GetBlockTime() :
+                                                  Params().GenesisBlock().GetBlockTime();
+        int64_t secs = GetTime() - blockTime;
+        isSyncing = secs >= 90*60 ? true : false;
     }
     std::unique_ptr<Wallet> loadWallet(const std::string& name, std::string& error, std::vector<std::string>& warnings) override
     {
@@ -316,9 +327,14 @@ public:
         return MakeHandler(
             ::uiInterface.NotifyHeaderTip_connect([fn](bool initial_download, const CBlockIndex* block) {
                 fn(initial_download, block->nHeight, block->GetBlockTime(),
-                    /* verification progress is unused when a header was received */ 0);
+                    GuessVerificationProgress(Params().TxData(), block));
             }));
     }
+    std::unique_ptr<Handler> handleNotifyAdditionalDataSyncProgressChanged(NotifyAdditionalDataSyncProgressChangedFn fn) override
+    {
+        return MakeHandler(::uiInterface.NotifyAdditionalDataSyncProgressChanged_connect(fn));
+    }
+
     NodeContext* context() override { return &m_context; }
     NodeContext m_context;
 };

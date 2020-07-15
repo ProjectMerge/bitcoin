@@ -5,8 +5,12 @@
 #include <interfaces/wallet.h>
 
 #include <amount.h>
+#include <consensus/validation.h>
 #include <interfaces/chain.h>
 #include <interfaces/handler.h>
+#include <masternode/masternode.h>
+#include <masternode/masternodeman.h>
+#include <policy/feerate.h>
 #include <policy/fees.h>
 #include <primitives/transaction.h>
 #include <script/standard.h>
@@ -21,6 +25,8 @@
 #include <wallet/load.h>
 #include <wallet/rpcwallet.h>
 #include <wallet/wallet.h>
+#include <key_io.h>
+#include <wallet/walletutil.h>
 
 #include <memory>
 #include <string>
@@ -55,6 +61,8 @@ WalletTx MakeWalletTx(CWallet& wallet, const CWalletTx& wtx)
     result.time = wtx.GetTxTime();
     result.value_map = wtx.mapValue;
     result.is_coinbase = wtx.IsCoinBase();
+    result.is_coinstake = wtx.IsCoinStake();
+    result.is_in_main_chain = wtx.IsInMainChain();
     return result;
 }
 
@@ -71,6 +79,7 @@ WalletTxStatus MakeWalletTxStatus(interfaces::Chain::Lock& locked_chain, const C
     result.is_trusted = wtx.IsTrusted(locked_chain);
     result.is_abandoned = wtx.isAbandoned();
     result.is_coinbase = wtx.IsCoinBase();
+    result.is_coinstake = wtx.IsCoinStake();
     result.is_in_main_chain = wtx.IsInMainChain();
     return result;
 }
@@ -361,7 +370,7 @@ public:
         result.balance = bal.m_mine_trusted;
         result.unconfirmed_balance = bal.m_mine_untrusted_pending;
         result.immature_balance = bal.m_mine_immature;
-        result.have_watch_only = haveWatchOnly();
+        result.stake = bal.m_mine_stake;
         if (result.have_watch_only) {
             result.watch_only_balance = bal.m_watchonly_trusted;
             result.unconfirmed_watch_only_balance = bal.m_watchonly_untrusted_pending;
@@ -410,6 +419,70 @@ public:
         auto locked_chain = m_wallet->chain().lock();
         LOCK(m_wallet->cs_wallet);
         return m_wallet->GetCredit(txout, filter);
+    }
+    std::vector<std::string> availableAddresses(interfaces::Chain::Lock& locked_chain, bool fIncludeZeroValue)
+    {
+        std::vector<std::string> result;
+        std::vector<COutput> vecOutputs;
+        std::map<std::string, bool> mapAddress;
+
+        if(fIncludeZeroValue)
+        {
+            // Get the user created addresses in from the address book and add them if they are mine
+            for (const auto& item : m_wallet->m_address_book) {
+                if(!m_wallet->IsMine(item.first)) continue;
+
+                std::string strAddress = EncodeDestination(item.first);
+                if (mapAddress.find(strAddress) == mapAddress.end())
+                {
+                    mapAddress[strAddress] = true;
+                    result.push_back(strAddress);
+                }
+            }
+
+            // Get all coins including the 0 values
+            m_wallet->AvailableCoins(locked_chain, vecOutputs, false, nullptr, 0);
+        }
+        else
+        {
+            // Get all spendable coins
+            m_wallet->AvailableCoins(locked_chain, vecOutputs);
+        }
+
+        // Extract all coins addresses and add them in the list
+        for (const COutput& out : vecOutputs)
+        {
+            CTxDestination address;
+            const CScript& scriptPubKey = out.tx->tx->vout[out.i].scriptPubKey;
+            bool fValidAddress = ExtractDestination(scriptPubKey, address);
+
+            if (!fValidAddress || !m_wallet->IsMine(address)) continue;
+
+            std::string strAddress = EncodeDestination(address);
+            if (mapAddress.find(strAddress) == mapAddress.end())
+            {
+                mapAddress[strAddress] = true;
+                result.push_back(strAddress);
+            }
+        }
+
+        return result;
+    }
+    bool tryGetAvailableAddresses(std::vector<std::string> &spendableAddresses, std::vector<std::string> &allAddresses, bool &includeZeroValue) override
+    {
+        auto locked_chain = m_wallet->chain().lock(true);
+        if (!locked_chain) return false;
+        TRY_LOCK(m_wallet->cs_wallet, locked_wallet);
+        if (!locked_wallet) {
+            return false;
+        }
+
+        spendableAddresses = availableAddresses(*locked_chain, false);
+        allAddresses = availableAddresses(*locked_chain, true);
+        int num_blocks = locked_chain->getHeight().get_value_or(-1);
+        includeZeroValue = true;
+
+        return true;
     }
     CoinsList listCoins() override
     {
@@ -467,6 +540,14 @@ public:
     {
         RemoveWallet(m_wallet);
     }
+    bool getWalletUnlockStakingOnly() override
+    {
+        return m_wallet->m_wallet_unlock_staking_only;
+    }
+    void setWalletUnlockStakingOnly(bool unlock) override
+    {
+        m_wallet->m_wallet_unlock_staking_only = unlock;
+    }
     std::unique_ptr<Handler> handleUnload(UnloadFn fn) override
     {
         return MakeHandler(m_wallet->NotifyUnload.connect(fn));
@@ -497,6 +578,10 @@ public:
     std::unique_ptr<Handler> handleCanGetAddressesChanged(CanGetAddressesChangedFn fn) override
     {
         return MakeHandler(m_wallet->NotifyCanGetAddressesChanged.connect(fn));
+    }
+    std::unique_ptr<Handler> handleNotifyAdditionalDataSyncProgressChanged(NotifyAdditionalDataSyncProgressChangedFn fn) override
+    {
+        return MakeHandler(m_wallet->NotifyAdditionalDataSyncProgressChanged.connect(fn));
     }
 
     std::shared_ptr<CWallet> m_wallet;

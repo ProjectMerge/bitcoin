@@ -91,7 +91,7 @@ static std::map<std::string, std::unique_ptr<fsbridge::FileLock>> dir_locks;
 /** Mutex to protect dir_locks. */
 static std::mutex cs_dir_locks;
 
-bool LockDirectory(const fs::path& directory, const std::string lockfile_name, bool probe_only)
+bool LockDirectory(const fs::path& directory, const std::string lockfile_name, bool probe_only, bool try_lock)
 {
     std::lock_guard<std::mutex> ulock(cs_dir_locks);
     fs::path pathLockFile = directory / lockfile_name;
@@ -105,7 +105,7 @@ bool LockDirectory(const fs::path& directory, const std::string lockfile_name, b
     FILE* file = fsbridge::fopen(pathLockFile, "a");
     if (file) fclose(file);
     auto lock = MakeUnique<fsbridge::FileLock>(pathLockFile);
-    if (!lock->TryLock()) {
+    if (try_lock && !lock->TryLock()) {
         return error("Error while attempting to lock directory %s: %s", directory.string(), lock->GetReason());
     }
     if (!probe_only) {
@@ -568,7 +568,7 @@ fs::path GetDefaultDataDir()
     // Unix: ~/.bitcoin
 #ifdef WIN32
     // Windows
-    return GetSpecialFolderPath(CSIDL_APPDATA) / "Bitcoin";
+    return GetSpecialFolderPath(CSIDL_APPDATA) / "Merge";
 #else
     fs::path pathRet;
     char* pszHome = getenv("HOME");
@@ -578,10 +578,10 @@ fs::path GetDefaultDataDir()
         pathRet = fs::path(pszHome);
 #ifdef MAC_OSX
     // Mac
-    return pathRet / "Library/Application Support/Bitcoin";
+    return pathRet / "Library/Application Support/Merge";
 #else
     // Unix
-    return pathRet / ".bitcoin";
+    return pathRet / ".merge";
 #endif
 #endif
 }
@@ -1147,8 +1147,8 @@ std::string CopyrightHolders(const std::string& strPrefix)
     std::string strCopyrightHolders = strPrefix + copyright_devs;
 
     // Make sure Bitcoin Core copyright is not removed by accident
-    if (copyright_devs.find("Bitcoin Core") == std::string::npos) {
-        strCopyrightHolders += "\n" + strPrefix + "The Bitcoin Core developers";
+    if (copyright_devs.find("MErge Core") == std::string::npos) {
+        strCopyrightHolders += "\n" + strPrefix + "The Merge Core developers";
     }
     return strCopyrightHolders;
 }

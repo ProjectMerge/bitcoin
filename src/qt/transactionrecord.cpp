@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2019 The Bitcoin Core developers
+// Copyright (c) 2011-2018 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -7,18 +7,31 @@
 #include <chain.h>
 #include <interfaces/wallet.h>
 #include <key_io.h>
+#include <util/strencodings.h>
 #include <wallet/ismine.h>
 
 #include <stdint.h>
 
 #include <QDateTime>
 
+typedef std::vector<unsigned char> valtype;
+
+/* Convert the keyid into hash160 string for contract.
+ */
+std::string toStringHash160(const CKeyID& keyid)
+{
+    return HexStr(valtype(keyid.begin(),keyid.end()));
+}
+
 /* Return positive answer if transaction should be shown in list.
  */
-bool TransactionRecord::showTransaction()
+bool TransactionRecord::showTransaction(const interfaces::WalletTx& wtx)
 {
-    // There are currently no cases where we hide transactions, but
-    // we may want to use this in the future for things like RBF.
+    // Ensures we show generated coins / mined transactions at depth 1
+    if((wtx.is_coinbase || wtx.is_coinstake) && !wtx.is_in_main_chain)
+    {
+        return false;
+    }
     return true;
 }
 
@@ -35,7 +48,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const interface
     uint256 hash = wtx.tx->GetHash();
     std::map<std::string, std::string> mapValue = wtx.value_map;
 
-    if (nNet > 0 || wtx.is_coinbase)
+    if (nNet > 0 || wtx.is_coinbase || wtx.is_coinstake)
     {
         //
         // Credit
@@ -47,15 +60,24 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const interface
             if(mine)
             {
                 TransactionRecord sub(hash, nTime);
-                CTxDestination address;
-                sub.idx = i; // vout index
-                sub.credit = txout.nValue;
+                if(wtx.is_coinstake) // Combine into single output for coinstake
+                {
+                    sub.idx = 1; // vout index
+                    sub.credit = nNet;
+                }
+                else
+                {
+                    sub.idx = i; // vout index
+                    sub.credit = txout.nValue;
+                }
                 sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
                 if (wtx.txout_address_is_mine[i])
                 {
                     // Received by Bitcoin Address
-                    sub.type = TransactionRecord::RecvWithAddress;
-                    sub.address = EncodeDestination(wtx.txout_address[i]);
+                    {
+                        sub.type = TransactionRecord::RecvWithAddress;
+                        sub.address = EncodeDestination(wtx.txout_address[i]);
+                    }
                 }
                 else
                 {
@@ -63,13 +85,16 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const interface
                     sub.type = TransactionRecord::RecvFromOther;
                     sub.address = mapValue["from"];
                 }
-                if (wtx.is_coinbase)
+                if (wtx.is_coinbase || wtx.is_coinstake)
                 {
                     // Generated
                     sub.type = TransactionRecord::Generated;
                 }
 
                 parts.append(sub);
+
+                if(wtx.is_coinstake)
+                    break; // Single output for coinstake
             }
         }
     }
@@ -93,14 +118,10 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const interface
         if (fAllFromMe && fAllToMe)
         {
             // Payment to self
-            std::string address;
-            for (auto it = wtx.txout_address.begin(); it != wtx.txout_address.end(); ++it) {
-                if (it != wtx.txout_address.begin()) address += ", ";
-                address += EncodeDestination(*it);
-            }
-
             CAmount nChange = wtx.change;
-            parts.append(TransactionRecord(hash, nTime, TransactionRecord::SendToSelf, address, -(nDebit - nChange), nCredit - nChange));
+
+            parts.append(TransactionRecord(hash, nTime, TransactionRecord::SendToSelf, "",
+                            -(nDebit - nChange), nCredit - nChange));
             parts.last().involvesWatchAddress = involvesWatchAddress;   // maybe pass to TransactionRecord as constructor argument
         }
         else if (fAllFromMe)
@@ -169,7 +190,7 @@ void TransactionRecord::updateStatus(const interfaces::WalletTxStatus& wtx, int 
     // Sort order, unrecorded transactions sort to the top
     status.sortKey = strprintf("%010d-%01d-%010u-%03d",
         wtx.block_height,
-        wtx.is_coinbase ? 1 : 0,
+        (wtx.is_coinbase || wtx.is_coinstake) ? 1 : 0,
         wtx.time_received,
         idx);
     status.countsForBalance = wtx.is_trusted && !(wtx.blocks_to_maturity > 0);

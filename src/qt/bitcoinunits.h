@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2020 The Bitcoin Core developers
+// Copyright (c) 2011-2018 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -10,9 +10,28 @@
 #include <QAbstractListModel>
 #include <QString>
 
+#include <boost/multiprecision/cpp_int.hpp>
+using namespace boost::multiprecision;
+
 // U+2009 THIN SPACE = UTF-8 E2 80 89
 #define REAL_THIN_SP_CP 0x2009
 #define REAL_THIN_SP_UTF8 "\xE2\x80\x89"
+#define REAL_THIN_SP_HTML "&thinsp;"
+
+// U+200A HAIR SPACE = UTF-8 E2 80 8A
+#define HAIR_SP_CP 0x200A
+#define HAIR_SP_UTF8 "\xE2\x80\x8A"
+#define HAIR_SP_HTML "&#8202;"
+
+// U+2006 SIX-PER-EM SPACE = UTF-8 E2 80 86
+#define SIXPEREM_SP_CP 0x2006
+#define SIXPEREM_SP_UTF8 "\xE2\x80\x86"
+#define SIXPEREM_SP_HTML "&#8198;"
+
+// U+2007 FIGURE SPACE = UTF-8 E2 80 87
+#define FIGURE_SP_CP 0x2007
+#define FIGURE_SP_UTF8 "\xE2\x80\x87"
+#define FIGURE_SP_HTML "&#8199;"
 
 // QMessageBox seems to have a bug whereby it doesn't display thin/hair spaces
 // correctly.  Workaround is to display a space in a small font.  If you
@@ -69,6 +88,8 @@ public:
     static QString description(int unit);
     //! Number of Satoshis (1e-8) per unit
     static qint64 factor(int unit);
+    //! Token factor from decimals
+    static int256_t tokenFactor(int unit);
     //! Number of decimals left
     static int decimals(int unit);
     //! Format as string
@@ -81,6 +102,12 @@ public:
     static bool parse(int unit, const QString &value, CAmount *val_out);
     //! Gets title for amount column including current display unit if optionsModel reference available */
     static QString getAmountColumnTitle(int unit);
+    //! Parse string to token amount
+    static bool parseToken(int decimal_units, const QString &value, int256_t *val_out);
+    //! Format token as string
+    static QString formatToken(int decimal_units, const int256_t& amount, bool plussign=false, SeparatorStyle separators=separatorStandard); //! Format token as string
+    //! Format token as string (with unit)
+    static QString formatTokenWithUnit(const QString unit, int decimals, const int256_t& amount, bool plussign=false, SeparatorStyle separators=separatorStandard);
     ///@}
 
     //! @name AbstractListModel implementation
@@ -98,6 +125,9 @@ public:
     {
         text.remove(' ');
         text.remove(QChar(THIN_SP_CP));
+#if (THIN_SP_CP != REAL_THIN_SP_CP)
+        text.remove(QChar(REAL_THIN_SP_CP));
+#endif
         return text;
     }
 

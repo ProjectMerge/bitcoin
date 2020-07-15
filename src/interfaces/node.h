@@ -156,6 +156,9 @@ public:
     //! Is initial block download.
     virtual bool isInitialBlockDownload() = 0;
 
+    //! Is -addresstype set.
+    virtual bool isAddressTypeSet() = 0;
+
     //! Get reindex.
     virtual bool getReindex() = 0;
 
@@ -170,6 +173,9 @@ public:
 
     //! Estimate smart fee.
     virtual CFeeRate estimateSmartFee(int num_blocks, bool conservative, int* returned_target = nullptr) = 0;
+
+    //! Get node synchronization information.
+    virtual void getSyncInfo(int& numBlocks, bool& isSyncing) = 0;
 
     //! Get dust relay fee.
     virtual CFeeRate getDustRelayFee() = 0;
@@ -258,6 +264,10 @@ public:
 
     //! Return pointer to internal chain interface, useful for testing.
     virtual NodeContext* context() { return nullptr; }
+
+    //! Register handler for additional UI signals
+    using NotifyAdditionalDataSyncProgressChangedFn = std::function<void(double nSyncProgress)>;
+    virtual std::unique_ptr<Handler> handleNotifyAdditionalDataSyncProgressChanged(NotifyAdditionalDataSyncProgressChangedFn fn) = 0;
 };
 
 //! Return implementation of Node interface.

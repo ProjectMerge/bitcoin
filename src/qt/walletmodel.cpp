@@ -23,7 +23,7 @@
 #include <ui_interface.h>
 #include <util/system.h> // for GetBoolArg
 #include <wallet/coincontrol.h>
-#include <wallet/wallet.h> // for CRecipient
+#include <wallet/wallet.h>
 
 #include <stdint.h>
 
@@ -31,19 +31,48 @@
 #include <QMessageBox>
 #include <QSet>
 #include <QTimer>
+#include <QFile>
 
+class WalletWorker : public QObject
+{
+    Q_OBJECT
+public:
+    WalletModel *walletModel;
+    WalletWorker(WalletModel *_walletModel):
+        walletModel(_walletModel){}
+
+private Q_SLOTS:
+    void updateModel()
+    {
+        // Update the model with results of task that take more time to be completed
+        walletModel->checkCoinAddressesChanged();
+    }
+};
+
+#include <qt/walletmodel.moc>
 
 WalletModel::WalletModel(std::unique_ptr<interfaces::Wallet> wallet, interfaces::Node& node, const PlatformStyle *platformStyle, OptionsModel *_optionsModel, QObject *parent) :
     QObject(parent), m_wallet(std::move(wallet)), m_node(node), optionsModel(_optionsModel), addressTableModel(nullptr),
     transactionTableModel(nullptr),
     recentRequestsTableModel(nullptr),
     cachedEncryptionStatus(Unencrypted),
-    cachedNumBlocks(0)
+    cachedNumBlocks(0),
+    nWeight(0),
+    updateStakeWeight(true),
+    updateCoinAddresses(true),
+    worker(0)
 {
     fHaveWatchOnly = m_wallet->haveWatchOnly();
     addressTableModel = new AddressTableModel(this);
     transactionTableModel = new TransactionTableModel(platformStyle, this);
     recentRequestsTableModel = new RecentRequestsTableModel(this);
+
+    worker = new WalletWorker(this);
+    worker->moveToThread(&(t));
+    t.start();
+
+    connect(addressTableModel, SIGNAL(rowsInserted(QModelIndex,int,int)), this, SLOT(checkCoinAddresses()));
+    connect(addressTableModel, SIGNAL(rowsRemoved(QModelIndex,int,int)), this, SLOT(checkCoinAddresses()));
 
     subscribeToCoreSignals();
 }
@@ -51,6 +80,9 @@ WalletModel::WalletModel(std::unique_ptr<interfaces::Wallet> wallet, interfaces:
 WalletModel::~WalletModel()
 {
     unsubscribeFromCoreSignals();
+
+    t.quit();
+    t.wait();
 }
 
 void WalletModel::startPollBalance()
@@ -58,6 +90,7 @@ void WalletModel::startPollBalance()
     // This timer will be fired repeatedly to update the balance
     QTimer* timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &WalletModel::pollBalanceChanged);
+    connect(timer, SIGNAL(timeout()), worker, SLOT(updateModel()));
     timer->start(MODEL_UPDATE_DELAY);
 }
 
@@ -92,12 +125,14 @@ void WalletModel::pollBalanceChanged()
         transactionTableModel->updateConfirmations();
 }
 
-void WalletModel::checkBalanceChanged(const interfaces::WalletBalances& new_balances)
+bool WalletModel::checkBalanceChanged(const interfaces::WalletBalances& new_balances)
 {
     if(new_balances.balanceChanged(m_cached_balances)) {
         m_cached_balances = new_balances;
         Q_EMIT balanceChanged(new_balances);
+        return true;
     }
+    return false;
 }
 
 void WalletModel::updateTransaction()
@@ -144,6 +179,7 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
     {
         if (rcp.fSubtractFeeFromAmount)
             fSubtractFeeFromAmount = true;
+
         {   // User-entered bitcoin address / amount:
             if(!validateAddress(rcp.address))
             {
@@ -328,6 +364,23 @@ bool WalletModel::changePassphrase(const SecureString &oldPass, const SecureStri
     return m_wallet->changeWalletPassphrase(oldPass, newPass);
 }
 
+bool WalletModel::restoreWallet(const QString &filename, const QString &param)
+{
+    if(QFile::exists(filename))
+    {
+        fs::path pathWalletBak = GetDataDir() / strprintf("wallet.%d.bak", GetTime());
+        std::string walletBak = pathWalletBak.string();
+        if(m_wallet->backupWallet(walletBak))
+        {
+            restorePath = filename;
+            restoreParam = param;
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // Handlers for core signals
 static void NotifyUnload(WalletModel* walletModel)
 {
@@ -419,6 +472,13 @@ void WalletModel::unsubscribeFromCoreSignals()
 WalletModel::UnlockContext WalletModel::requestUnlock()
 {
     bool was_locked = getEncryptionStatus() == Locked;
+
+    if ((!was_locked) && getWalletUnlockStakingOnly())
+    {
+       setWalletLocked(true);
+       was_locked = getEncryptionStatus() == Locked;
+    }
+
     if(was_locked)
     {
         // Request UI to unlock wallet
@@ -427,14 +487,20 @@ WalletModel::UnlockContext WalletModel::requestUnlock()
     // If wallet is still locked, unlock was failed or cancelled, mark context as invalid
     bool valid = getEncryptionStatus() != Locked;
 
-    return UnlockContext(this, valid, was_locked);
+    return UnlockContext(this, valid, was_locked && !getWalletUnlockStakingOnly());
 }
 
 WalletModel::UnlockContext::UnlockContext(WalletModel *_wallet, bool _valid, bool _relock):
         wallet(_wallet),
         valid(_valid),
-        relock(_relock)
+        relock(_relock),
+        stakingOnly(false)
 {
+    if(!relock)
+    {
+        stakingOnly = wallet->getWalletUnlockStakingOnly();
+        wallet->setWalletUnlockStakingOnly(false);
+    }
 }
 
 WalletModel::UnlockContext::~UnlockContext()
@@ -442,6 +508,12 @@ WalletModel::UnlockContext::~UnlockContext()
     if(valid && relock)
     {
         wallet->setWalletLocked(true);
+    }
+
+    if(!relock)
+    {
+        wallet->setWalletUnlockStakingOnly(stakingOnly);
+        wallet->updateStatus();
     }
 }
 
@@ -519,6 +591,7 @@ bool WalletModel::bumpFee(uint256 hash, uint256& new_hash)
         return false;
     }
 
+
     // Short-circuit if we are returning a bumped transaction PSBT to clipboard
     if (create_psbt) {
         PartiallySignedTransaction psbtx(mtx);
@@ -569,4 +642,61 @@ QString WalletModel::getDisplayName() const
 bool WalletModel::isMultiwallet()
 {
     return m_node.getWallets().size() > 1;
+}
+
+QString WalletModel::getRestorePath()
+{
+    return restorePath;
+}
+
+QString WalletModel::getRestoreParam()
+{
+    return restoreParam;
+}
+
+bool WalletModel::restore()
+{
+    return !restorePath.isEmpty();
+}
+
+uint64_t WalletModel::getStakeWeight()
+{
+    return nWeight;
+}
+
+bool WalletModel::getWalletUnlockStakingOnly()
+{
+    return m_wallet->getWalletUnlockStakingOnly();
+}
+
+void WalletModel::setWalletUnlockStakingOnly(bool unlock)
+{
+    m_wallet->setWalletUnlockStakingOnly(unlock);
+}
+
+void WalletModel::checkCoinAddressesChanged()
+{
+    // Get the list of coin addresses and emit it to the subscribers
+    std::vector<std::string> spendableAddresses;
+    std::vector<std::string> allAddresses;
+    bool includeZeroValue = false;
+    if(updateCoinAddresses && m_wallet->tryGetAvailableAddresses(spendableAddresses, allAddresses, includeZeroValue))
+    {
+        QStringList listSpendableAddresses;
+        for(std::string address : spendableAddresses)
+            listSpendableAddresses.append(QString::fromStdString(address));
+
+        QStringList listAllAddresses;
+        for(std::string address : allAddresses)
+            listAllAddresses.append(QString::fromStdString(address));
+
+        Q_EMIT availableAddressesChanged(listSpendableAddresses, listAllAddresses, includeZeroValue);
+
+        updateCoinAddresses = false;
+    }
+}
+
+void WalletModel::checkCoinAddresses()
+{
+    updateCoinAddresses = true;
 }

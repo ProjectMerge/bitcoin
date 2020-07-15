@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2019 The Bitcoin Core developers
+// Copyright (c) 2011-2018 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -58,6 +58,7 @@ public:
     int getNumConnections(unsigned int flags = CONNECTIONS_ALL) const;
     int getHeaderTipHeight() const;
     int64_t getHeaderTipTime() const;
+    QString getMasternodeCountString() const;
 
     //! Returns enum BlockSource of the current importing/syncing state
     enum BlockSource getBlockSource() const;
@@ -86,9 +87,13 @@ private:
     std::unique_ptr<interfaces::Handler> m_handler_banned_list_changed;
     std::unique_ptr<interfaces::Handler> m_handler_notify_block_tip;
     std::unique_ptr<interfaces::Handler> m_handler_notify_header_tip;
+    std::unique_ptr<interfaces::Handler> m_handler_notify_additional_data_sync_progress_changed;
     OptionsModel *optionsModel;
     PeerTableModel *peerTableModel;
+    QString cachedMasternodeCountString;
     BanTableModel *banTableModel;
+    QTimer *pollTimer;
+    QTimer *pollMnTimer;
 
     //! A thread to interact with m_node asynchronously
     QThread* const m_thread;
@@ -98,7 +103,9 @@ private:
 
 Q_SIGNALS:
     void numConnectionsChanged(int count);
+    void strMasternodesChanged(const QString &strMasternodes);
     void numBlocksChanged(int count, const QDateTime& blockDate, double nVerificationProgress, bool header);
+    void additionalDataSyncProgressChanged(double nSyncProgress);
     void mempoolSizeChanged(long count, size_t mempoolSizeInBytes);
     void networkActiveChanged(bool networkActive);
     void alertsChanged(const QString &warnings);
@@ -111,6 +118,8 @@ Q_SIGNALS:
     void showProgress(const QString &title, int nProgress);
 
 public Q_SLOTS:
+    void updateTimer();
+    void updateMnTimer();
     void updateNumConnections(int numConnections);
     void updateNetworkActive(bool networkActive);
     void updateAlert();

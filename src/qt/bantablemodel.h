@@ -12,6 +12,7 @@
 #include <QAbstractTableModel>
 #include <QStringList>
 
+class ClientModel;
 class BanTablePriv;
 
 namespace interfaces {
@@ -44,7 +45,7 @@ class BanTableModel : public QAbstractTableModel
     Q_OBJECT
 
 public:
-    explicit BanTableModel(interfaces::Node& node, QObject* parent);
+    explicit BanTableModel(interfaces::Node& node, ClientModel *parent = nullptr);
     ~BanTableModel();
     void startAutoRefresh();
     void stopAutoRefresh();
@@ -71,6 +72,7 @@ public Q_SLOTS:
 
 private:
     interfaces::Node& m_node;
+    ClientModel *clientModel;
     QStringList columns;
     std::unique_ptr<BanTablePriv> priv;
 };

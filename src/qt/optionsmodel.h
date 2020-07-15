@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2020 The Bitcoin Core developers
+// Copyright (c) 2011-2018 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -16,6 +16,7 @@ class Node;
 
 extern const char *DEFAULT_GUI_PROXY_HOST;
 static constexpr unsigned short DEFAULT_GUI_PROXY_PORT = 9050;
+static const bool DEFAULT_CHECK_FOR_UPDATES = true;
 
 /**
  * Convert configured prune target MiB to displayed GB. Round up to avoid underestimating max disk usage.
@@ -60,8 +61,14 @@ public:
         Prune,                  // bool
         PruneSize,              // int
         DatabaseCache,          // int
+        LogEvents,              // bool
         SpendZeroConfChange,    // bool
+        ZeroBalanceAddressToken,// bool
         Listen,                 // bool
+        UseChangeAddress,       // bool
+        CheckForUpdates,        // bool
+        ReserveBalance,         // CAmount
+        Theme,                  // QString
         OptionIDRowCount,
     };
 
@@ -82,16 +89,20 @@ public:
     QString getThirdPartyTxUrls() const { return strThirdPartyTxUrls; }
     bool getCoinControlFeatures() const { return fCoinControlFeatures; }
     const QString& getOverriddenByCommandLine() { return strOverriddenByCommandLine; }
+    bool getCheckForUpdates() const { return fCheckForUpdates; }
 
     /* Explicit setters */
-    void SetPruneEnabled(bool prune, bool force = false);
-    void SetPruneTargetGB(int prune_target_gb, bool force = false);
+    void SetPrune(bool prune, bool force = false);
+    bool getZeroBalanceAddressToken() const { return bZeroBalanceAddressToken; }
 
     /* Restart flag helper */
     void setRestartRequired(bool fRequired);
     bool isRestartRequired() const;
 
     interfaces::Node& node() const { return m_node; }
+
+    bool getRestartApp() const;
+    void setRestartApp(bool value);
 
 private:
     interfaces::Node& m_node;
@@ -105,6 +116,10 @@ private:
     bool fCoinControlFeatures;
     /* settings that were overridden by command-line */
     QString strOverriddenByCommandLine;
+    bool fCheckForUpdates;
+    bool bZeroBalanceAddressToken;
+    QString theme;
+    bool restartApp;
 
     // Add option to list of GUI options overridden through command line/config file
     void addOverriddenOption(const std::string &option);
@@ -115,6 +130,7 @@ Q_SIGNALS:
     void displayUnitChanged(int unit);
     void coinControlFeaturesChanged(bool);
     void hideTrayIconChanged(bool);
+    void zeroBalanceAddressTokenChanged(bool);
 };
 
 #endif // BITCOIN_QT_OPTIONSMODEL_H

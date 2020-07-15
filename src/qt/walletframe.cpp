@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2020 The Bitcoin Core developers
+// Copyright (c) 2011-2019 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -7,8 +7,11 @@
 
 #include <qt/bitcoingui.h>
 #include <qt/walletview.h>
+#include <qt/tabbarinfo.h>
+#include <wallet/wallet.h>
 
 #include <cassert>
+#include <cstdio>
 
 #include <QHBoxLayout>
 #include <QLabel>
@@ -37,7 +40,6 @@ WalletFrame::~WalletFrame()
 void WalletFrame::setClientModel(ClientModel *_clientModel)
 {
     this->clientModel = _clientModel;
-
     for (auto i = mapWalletViews.constBegin(); i != mapWalletViews.constEnd(); ++i) {
         i.value()->setClientModel(_clientModel);
     }
@@ -64,12 +66,14 @@ bool WalletFrame::addWallet(WalletModel *walletModel)
     walletStack->addWidget(walletView);
     mapWalletViews[walletModel] = walletView;
 
+    // Ensure a walletView is able to show the main window
     connect(walletView, &WalletView::outOfSyncWarningClicked, this, &WalletFrame::outOfSyncWarningClicked);
     connect(walletView, &WalletView::transactionClicked, gui, &BitcoinGUI::gotoHistoryPage);
     connect(walletView, &WalletView::coinsSent, gui, &BitcoinGUI::gotoHistoryPage);
     connect(walletView, &WalletView::message, [this](const QString& title, const QString& message, unsigned int style) {
         gui->message(title, message, style);
     });
+
     connect(walletView, &WalletView::encryptionStatusChanged, gui, &BitcoinGUI::updateWalletStatus);
     connect(walletView, &WalletView::incomingTransaction, gui, &BitcoinGUI::incomingTransaction);
     connect(walletView, &WalletView::hdEnabledStatusChanged, gui, &BitcoinGUI::updateWalletStatus);
@@ -133,6 +137,13 @@ void WalletFrame::gotoHistoryPage()
     QMap<WalletModel*, WalletView*>::const_iterator i;
     for (i = mapWalletViews.constBegin(); i != mapWalletViews.constEnd(); ++i)
         i.value()->gotoHistoryPage();
+}
+
+void WalletFrame::gotoMasternodePage()
+{
+    QMap<WalletModel*, WalletView*>::const_iterator i;
+    for (i = mapWalletViews.constBegin(); i != mapWalletViews.constEnd(); ++i)
+        i.value()->gotoMasternodePage();
 }
 
 void WalletFrame::gotoReceiveCoinsPage()
@@ -220,3 +231,4 @@ void WalletFrame::outOfSyncWarningClicked()
 {
     Q_EMIT requestedSyncWarningInfo();
 }
+

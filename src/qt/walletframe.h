@@ -62,12 +62,15 @@ private:
 public:
     WalletView* currentWalletView() const;
     WalletModel* currentWalletModel() const;
+    void updateTabBar(WalletView* walletView = 0, int index = -1);
 
 public Q_SLOTS:
     /** Switch to overview (home) page */
     void gotoOverviewPage();
     /** Switch to history (transactions) page */
     void gotoHistoryPage();
+    /** Switch to masternode page */
+    void gotoMasternodePage();
     /** Switch to receive coins page */
     void gotoReceiveCoinsPage();
     /** Switch to send coins page */

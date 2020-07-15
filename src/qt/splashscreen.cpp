@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2019 The Bitcoin Core developers
+// Copyright (c) 2011-2018 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -17,113 +17,71 @@
 #include <ui_interface.h>
 #include <util/system.h>
 #include <util/translation.h>
+#include <version.h>
 
 #include <QApplication>
 #include <QCloseEvent>
 #include <QPainter>
 #include <QRadialGradient>
 #include <QScreen>
-
+#include <QDesktopWidget>
 
 SplashScreen::SplashScreen(interfaces::Node& node, Qt::WindowFlags f, const NetworkStyle *networkStyle) :
-    QWidget(nullptr, f), curAlignment(0), m_node(node)
+    QWidget(0, f), curAlignment(0), m_node(node)
 {
-    // set reference point, paddings
-    int paddingRight            = 50;
-    int paddingTop              = 50;
-    int titleVersionVSpace      = 17;
-    int titleCopyrightVSpace    = 40;
+    setWindowFlags(Qt::FramelessWindowHint| Qt::WindowSystemMenuHint);
 
-    float fontFactor            = 1.0;
-    float devicePixelRatio      = 1.0;
-    devicePixelRatio = static_cast<QGuiApplication*>(QCoreApplication::instance())->devicePixelRatio();
+    // set reference point, paddings
+    int paddingLeft = 5;
+    int paddingTop = 428;
+    int titleCopyrightVSpace = 32;
+    float fontFactor = 0.8;
+    float devicePixelRatio = 1.0;
+    QString font = QApplication::font().toString();
 
     // define text to place
-    QString titleText       = PACKAGE_NAME;
-    QString versionText     = QString("Version %1").arg(QString::fromStdString(FormatFullVersion()));
-    QString copyrightText   = QString::fromUtf8(CopyrightHolders(strprintf("\xc2\xA9 %u-%u ", 2009, COPYRIGHT_YEAR)).c_str());
-    QString titleAddText    = networkStyle->getTitleAddText();
-
-    QString font            = QApplication::font().toString();
+    QString copyrightTextBTC   = QChar(0xA9) + QString("2009 ") + QString(tr("The Bitcoin developers"));
+    QString copyrightTextDash  = QChar(0xA9) + QString("2014 ") + QString(tr("The Dash developers"));
+    QString copyrightTextPIVX  = QChar(0xA9) + QString("2018 ") + QString(tr("The PIVX developers"));
+    QString copyrightTextMERGE = QChar(0xA9) + QString("2020 ") + QString(tr("The Merge developers"));
+    QString titleAddText = networkStyle->getTitleAddText();
 
     // create a bitmap according to device pixelratio
-    QSize splashSize(480*devicePixelRatio,320*devicePixelRatio);
+    QSize splashSize(500*devicePixelRatio,500*devicePixelRatio);
     pixmap = QPixmap(splashSize);
-
-    // change to HiDPI if it makes sense
-    pixmap.setDevicePixelRatio(devicePixelRatio);
-
     QPainter pixPaint(&pixmap);
     pixPaint.setPen(QColor(100,100,100));
 
     // draw a slightly radial gradient
+    QRect rectIcon(QPoint(10,0), QSize(500,500));
+    const QSize requiredSize(500,500);
+    QPixmap icon(networkStyle->getAppIcon().pixmap(requiredSize));
     QRadialGradient gradient(QPoint(0,0), splashSize.width()/devicePixelRatio);
     gradient.setColorAt(0, Qt::white);
     gradient.setColorAt(1, QColor(247,247,247));
     QRect rGradient(QPoint(0,0), splashSize);
     pixPaint.fillRect(rGradient, gradient);
-
-    // draw the bitcoin icon, expected size of PNG: 1024x1024
-    QRect rectIcon(QPoint(-150,-122), QSize(430,430));
-
-    const QSize requiredSize(1024,1024);
-    QPixmap icon(networkStyle->getAppIcon().pixmap(requiredSize));
-
     pixPaint.drawPixmap(rectIcon, icon);
 
-    // check font size and drawing with
-    pixPaint.setFont(QFont(font, 33*fontFactor));
-    QFontMetrics fm = pixPaint.fontMetrics();
-    int titleTextWidth = GUIUtil::TextWidth(fm, titleText);
-    if (titleTextWidth > 176) {
-        fontFactor = fontFactor * 176 / titleTextWidth;
-    }
-
-    pixPaint.setFont(QFont(font, 33*fontFactor));
-    fm = pixPaint.fontMetrics();
-    titleTextWidth  = GUIUtil::TextWidth(fm, titleText);
-    pixPaint.drawText(pixmap.width()/devicePixelRatio-titleTextWidth-paddingRight,paddingTop,titleText);
-
-    pixPaint.setFont(QFont(font, 15*fontFactor));
+    // copyright information
+    pixPaint.setFont(QFont(font, 8 * fontFactor));
+    pixPaint.drawText(paddingLeft, paddingTop + titleCopyrightVSpace, copyrightTextBTC);
+    pixPaint.drawText(paddingLeft, paddingTop + titleCopyrightVSpace + 12, copyrightTextDash);
+    pixPaint.drawText(paddingLeft, paddingTop + titleCopyrightVSpace + 24, copyrightTextPIVX);
+    pixPaint.drawText(paddingLeft, paddingTop + titleCopyrightVSpace + 36, copyrightTextMERGE);
 
     // if the version string is too long, reduce size
-    fm = pixPaint.fontMetrics();
-    int versionTextWidth  = GUIUtil::TextWidth(fm, versionText);
-    if(versionTextWidth > titleTextWidth+paddingRight-10) {
-        pixPaint.setFont(QFont(font, 10*fontFactor));
-        titleVersionVSpace -= 5;
-    }
-    pixPaint.drawText(pixmap.width()/devicePixelRatio-titleTextWidth-paddingRight+2,paddingTop+titleVersionVSpace,versionText);
-
-    // draw copyright stuff
-    {
-        pixPaint.setFont(QFont(font, 10*fontFactor));
-        const int x = pixmap.width()/devicePixelRatio-titleTextWidth-paddingRight;
-        const int y = paddingTop+titleCopyrightVSpace;
-        QRect copyrightRect(x, y, pixmap.width() - x - paddingRight, pixmap.height() - y);
-        pixPaint.drawText(copyrightRect, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, copyrightText);
-    }
-
-    // draw additional text if special network
-    if(!titleAddText.isEmpty()) {
-        QFont boldFont = QFont(font, 10*fontFactor);
-        boldFont.setWeight(QFont::Bold);
-        pixPaint.setFont(boldFont);
-        fm = pixPaint.fontMetrics();
-        int titleAddTextWidth  = GUIUtil::TextWidth(fm, titleAddText);
-        pixPaint.drawText(pixmap.width()/devicePixelRatio-titleAddTextWidth-10,15,titleAddText);
-    }
+    QString versionText = QString("Version %1").arg(QString::fromStdString(FormatFullVersion()));
+    versionText.truncate(27);
+    pixPaint.drawText(141+(pixmap.width()/2),pixmap.height()-4,versionText);
 
     pixPaint.end();
-
-    // Set window title
-    setWindowTitle(titleText + " " + titleAddText);
 
     // Resize window and move to center of desktop, disallow resizing
     QRect r(QPoint(), QSize(pixmap.size().width()/devicePixelRatio,pixmap.size().height()/devicePixelRatio));
     resize(r.size());
     setFixedSize(r.size());
-    move(QGuiApplication::primaryScreen()->geometry().center() - r.center());
+    move(QApplication::desktop()->screenGeometry().center() - r.center());
 
     subscribeToCoreSignals();
     installEventFilter(this);
@@ -137,7 +95,7 @@ SplashScreen::~SplashScreen()
 bool SplashScreen::eventFilter(QObject * obj, QEvent * ev) {
     if (ev->type() == QEvent::KeyPress) {
         QKeyEvent *keyEvent = static_cast<QKeyEvent *>(ev);
-        if (keyEvent->key() == Qt::Key_Q) {
+        if(keyEvent->text()[0] == 'q') {
             m_node.startShutdown();
         }
     }

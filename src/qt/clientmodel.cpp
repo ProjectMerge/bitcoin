@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2019 The Bitcoin Core developers
+// Copyright (c) 2011-2018 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -8,13 +8,15 @@
 #include <qt/guiconstants.h>
 #include <qt/guiutil.h>
 #include <qt/peertablemodel.h>
-
+#include <masternode/masternodeman.h>
+#include <masternode/masternode-sync.h>
 #include <clientversion.h>
 #include <interfaces/handler.h>
 #include <interfaces/node.h>
 #include <net.h>
 #include <netbase.h>
 #include <util/system.h>
+#include <wallet/wallet.h>
 
 #include <stdint.h>
 
@@ -37,6 +39,14 @@ ClientModel::ClientModel(interfaces::Node& node, OptionsModel *_optionsModel, QO
     cachedBestHeaderTime = -1;
     peerTableModel = new PeerTableModel(m_node, this);
     banTableModel = new BanTableModel(m_node, this);
+
+    pollTimer = new QTimer(this);
+    connect(pollTimer, &QTimer::timeout, this, &ClientModel::updateTimer);
+    pollTimer->start(MODEL_UPDATE_DELAY);
+
+    pollMnTimer = new QTimer(this);
+    connect(pollMnTimer, &QTimer::timeout, this, &ClientModel::updateMnTimer);
+    pollMnTimer->start(MODEL_UPDATE_DELAY * 4);
 
     QTimer* timer = new QTimer;
     timer->setInterval(MODEL_UPDATE_DELAY);
@@ -77,6 +87,13 @@ int ClientModel::getNumConnections(unsigned int flags) const
     return m_node.getNodeCount(connections);
 }
 
+QString ClientModel::getMasternodeCountString() const
+{
+    return tr("Total: %1 (Enabled: %2)")
+            .arg(QString::number((int)mnodeman.size()))
+            .arg(QString::number((int)mnodeman.CountEnabled()));
+}
+
 int ClientModel::getHeaderTipHeight() const
 {
     if (cachedBestHeaderHeight == -1) {
@@ -103,6 +120,22 @@ int64_t ClientModel::getHeaderTipTime() const
         }
     }
     return cachedBestHeaderTime;
+}
+
+void ClientModel::updateTimer()
+{
+    Q_EMIT mempoolSizeChanged(m_node.getMempoolSize(), m_node.getMempoolDynamicUsage());
+    Q_EMIT bytesChanged(m_node.getTotalBytesRecv(), m_node.getTotalBytesSent());
+}
+
+void ClientModel::updateMnTimer()
+{
+    QString newMasternodeCountString = getMasternodeCountString();
+
+    if (cachedMasternodeCountString != newMasternodeCountString) {
+        cachedMasternodeCountString = newMasternodeCountString;
+        Q_EMIT strMasternodesChanged(cachedMasternodeCountString);
+    }
 }
 
 void ClientModel::updateNumConnections(int numConnections)
@@ -242,9 +275,8 @@ static void BlockTipChanged(ClientModel *clientmodel, bool initialSync, int heig
         clientmodel->cachedBestHeaderHeight = height;
         clientmodel->cachedBestHeaderTime = blockTime;
     }
-
-    // During initial sync, block notifications, and header notifications from reindexing are both throttled.
-    if (!initialSync || (fHeader && !clientmodel->node().getReindex()) || now - nLastUpdateNotification > MODEL_UPDATE_DELAY) {
+    // if we are in-sync or if we notify a header update, update the UI regardless of last update time
+    if (fHeader || !initialSync || now - nLastUpdateNotification > MODEL_UPDATE_DELAY) {
         //pass an async signal to the UI thread
         bool invoked = QMetaObject::invokeMethod(clientmodel, "numBlocksChanged", Qt::QueuedConnection,
                                   Q_ARG(int, height),
@@ -254,6 +286,12 @@ static void BlockTipChanged(ClientModel *clientmodel, bool initialSync, int heig
         assert(invoked);
         nLastUpdateNotification = now;
     }
+}
+
+static void NotifyAdditionalDataSyncProgressChanged(ClientModel *clientmodel, double nSyncProgress)
+{
+    QMetaObject::invokeMethod(clientmodel, "additionalDataSyncProgressChanged", Qt::QueuedConnection,
+                              Q_ARG(double, nSyncProgress));
 }
 
 void ClientModel::subscribeToCoreSignals()
@@ -266,6 +304,7 @@ void ClientModel::subscribeToCoreSignals()
     m_handler_banned_list_changed = m_node.handleBannedListChanged(std::bind(BannedListChanged, this));
     m_handler_notify_block_tip = m_node.handleNotifyBlockTip(std::bind(BlockTipChanged, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, false));
     m_handler_notify_header_tip = m_node.handleNotifyHeaderTip(std::bind(BlockTipChanged, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, true));
+    m_handler_notify_additional_data_sync_progress_changed = m_node.handleNotifyAdditionalDataSyncProgressChanged(std::bind(NotifyAdditionalDataSyncProgressChanged, this, std::placeholders::_1));
 }
 
 void ClientModel::unsubscribeFromCoreSignals()
@@ -278,6 +317,7 @@ void ClientModel::unsubscribeFromCoreSignals()
     m_handler_banned_list_changed->disconnect();
     m_handler_notify_block_tip->disconnect();
     m_handler_notify_header_tip->disconnect();
+    m_handler_notify_additional_data_sync_progress_changed->disconnect();
 }
 
 bool ClientModel::getProxyInfo(std::string& ip_port) const
@@ -289,3 +329,4 @@ bool ClientModel::getProxyInfo(std::string& ip_port) const
     }
     return false;
 }
+

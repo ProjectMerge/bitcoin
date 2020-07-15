@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2019 The Bitcoin Core developers
+// Copyright (c) 2011-2018 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -55,7 +55,7 @@ struct AddressTableEntryLessThan
 static AddressTableEntry::Type translateTransactionType(const QString &strPurpose, bool isMine)
 {
     AddressTableEntry::Type addressType = AddressTableEntry::Hidden;
-    // "refund" addresses aren't shown, and change addresses aren't returned by getAddresses at all.
+    // "refund" addresses aren't shown, and change addresses aren't in mapAddressBook at all.
     if (strPurpose == "send")
         addressType = AddressTableEntry::Sending;
     else if (strPurpose == "receive")
@@ -406,12 +406,29 @@ bool AddressTableModel::removeRows(int row, int count, const QModelIndex &parent
     return true;
 }
 
-QString AddressTableModel::labelForAddress(const QString &address) const
+QString AddressTableModel::labelForAddress(const QString &address, bool cached) const
 {
-    std::string name;
-    if (getAddressData(address, &name, /* purpose= */ nullptr)) {
-        return QString::fromStdString(name);
+    if(cached)
+    {
+        // Find address / label in model
+        QList<AddressTableEntry>::iterator lower = qLowerBound(
+            priv->cachedAddressTable.begin(), priv->cachedAddressTable.end(), address, AddressTableEntryLessThan());
+        QList<AddressTableEntry>::iterator upper = qUpperBound(
+            priv->cachedAddressTable.begin(), priv->cachedAddressTable.end(), address, AddressTableEntryLessThan());
+        bool inModel = (lower != upper);
+        if(inModel)
+        {
+            return lower->label;
+        }
     }
+    else
+    {
+        std::string name;
+        if (getAddressData(address, &name, /* purpose= */ nullptr)) {
+            return QString::fromStdString(name);
+        }
+    }
+
     return QString();
 }
 

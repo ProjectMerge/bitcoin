@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2020 The Bitcoin Core developers
+// Copyright (c) 2011-2018 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -19,16 +19,22 @@
 #include <txdb.h> // for -dbcache defaults
 #include <util/string.h>
 
+#ifdef ENABLE_WALLET
+#include <wallet/wallet.h>
+#include <wallet/walletdb.h>
+#endif
+
 #include <QDebug>
 #include <QSettings>
 #include <QStringList>
+#include <util/moneystr.h>
 
 const char *DEFAULT_GUI_PROXY_HOST = "127.0.0.1";
 
 static const QString GetDefaultProxyAddress();
 
 OptionsModel::OptionsModel(interfaces::Node& node, QObject *parent, bool resetSettings) :
-    QAbstractListModel(parent), m_node(node)
+    QAbstractListModel(parent), m_node(node), restartApp(false)
 {
     Init(resetSettings);
 }
@@ -92,8 +98,8 @@ void OptionsModel::Init(bool resetSettings)
     if (!settings.contains("bPrune"))
         settings.setValue("bPrune", false);
     if (!settings.contains("nPruneSize"))
-        settings.setValue("nPruneSize", DEFAULT_PRUNE_TARGET_GB);
-    SetPruneEnabled(settings.value("bPrune").toBool());
+        settings.setValue("nPruneSize", 2);
+    SetPrune(settings.value("bPrune").toBool());
 
     if (!settings.contains("nDatabaseCache"))
         settings.setValue("nDatabaseCache", (qint64)nDefaultDbCache);
@@ -115,6 +121,10 @@ void OptionsModel::Init(bool resetSettings)
     if (!m_node.softSetBoolArg("-spendzeroconfchange", settings.value("bSpendZeroConfChange").toBool()))
         addOverriddenOption("-spendzeroconfchange");
 #endif
+
+    if (!settings.contains("fCheckForUpdates"))
+        settings.setValue("fCheckForUpdates", DEFAULT_CHECK_FOR_UPDATES);
+    fCheckForUpdates = settings.value("fCheckForUpdates").toBool();
 
     // Network
     if (!settings.contains("fUseUPnP"))
@@ -154,6 +164,10 @@ void OptionsModel::Init(bool resetSettings)
         addOverriddenOption("-lang");
 
     language = settings.value("language").toString();
+    if (!settings.contains("Theme"))
+        settings.setValue("Theme", "");
+
+    theme = settings.value("Theme").toString();
 }
 
 /** Helper function to copy contents from one QSettings to another.
@@ -237,12 +251,13 @@ static const QString GetDefaultProxyAddress()
     return QString("%1:%2").arg(DEFAULT_GUI_PROXY_HOST).arg(DEFAULT_GUI_PROXY_PORT);
 }
 
-void OptionsModel::SetPruneEnabled(bool prune, bool force)
+void OptionsModel::SetPrune(bool prune, bool force)
 {
     QSettings settings;
     settings.setValue("bPrune", prune);
-    const int64_t prune_target_mib = PruneGBtoMiB(settings.value("nPruneSize").toInt());
-    std::string prune_val = prune ? ToString(prune_target_mib) : "0";
+    // Convert prune size from GB to MiB:
+    const uint64_t nPruneSizeMiB = (settings.value("nPruneSize").toInt() * GB_BYTES) >> 20;
+    std::string prune_val = prune ? std::to_string(nPruneSizeMiB) : "0";
     if (force) {
         m_node.forceSetArg("-prune", prune_val);
         return;
@@ -250,16 +265,6 @@ void OptionsModel::SetPruneEnabled(bool prune, bool force)
     if (!m_node.softSetArg("-prune", prune_val)) {
         addOverriddenOption("-prune");
     }
-}
-
-void OptionsModel::SetPruneTargetGB(int prune_target_gb, bool force)
-{
-    const bool prune = prune_target_gb > 0;
-    if (prune) {
-        QSettings settings;
-        settings.setValue("nPruneSize", prune_target_gb);
-    }
-    SetPruneEnabled(prune, force);
 }
 
 // read QSettings values and return them
@@ -304,6 +309,10 @@ QVariant OptionsModel::data(const QModelIndex & index, int role) const
 #ifdef ENABLE_WALLET
         case SpendZeroConfChange:
             return settings.value("bSpendZeroConfChange");
+        case ZeroBalanceAddressToken:
+            return settings.value("bZeroBalanceAddressToken");
+        case ReserveBalance:
+            return settings.value("nReserveBalance");
 #endif
         case DisplayUnit:
             return nDisplayUnit;
@@ -319,10 +328,20 @@ QVariant OptionsModel::data(const QModelIndex & index, int role) const
             return settings.value("nPruneSize");
         case DatabaseCache:
             return settings.value("nDatabaseCache");
+        case LogEvents:
+            return settings.value("fLogEvents");
         case ThreadsScriptVerif:
             return settings.value("nThreadsScriptVerif");
         case Listen:
             return settings.value("fListen");
+#ifdef ENABLE_WALLET
+        case UseChangeAddress:
+            return settings.value("fUseChangeAddress");
+#endif
+        case CheckForUpdates:
+            return settings.value("fCheckForUpdates");
+        case Theme:
+            return settings.value("Theme");
         default:
             return QVariant();
         }
@@ -419,6 +438,11 @@ bool OptionsModel::setData(const QModelIndex & index, const QVariant & value, in
                 setRestartRequired(true);
             }
             break;
+        case ZeroBalanceAddressToken:
+            bZeroBalanceAddressToken = value.toBool();
+            settings.setValue("bZeroBalanceAddressToken", bZeroBalanceAddressToken);
+            Q_EMIT zeroBalanceAddressTokenChanged(bZeroBalanceAddressToken);
+            break;
 #endif
         case DisplayUnit:
             setDisplayUnit(value);
@@ -459,6 +483,20 @@ bool OptionsModel::setData(const QModelIndex & index, const QVariant & value, in
                 setRestartRequired(true);
             }
             break;
+        case LogEvents:
+            if (settings.value("fLogEvents") != value) {
+                settings.setValue("fLogEvents", value);
+                setRestartRequired(true);
+            }
+            break;
+#ifdef ENABLE_WALLET
+        case ReserveBalance:
+            if (settings.value("nReserveBalance") != value) {
+                settings.setValue("nReserveBalance", value);
+                setRestartRequired(true);
+            }
+            break;
+#endif
         case ThreadsScriptVerif:
             if (settings.value("nThreadsScriptVerif") != value) {
                 settings.setValue("nThreadsScriptVerif", value);
@@ -468,6 +506,28 @@ bool OptionsModel::setData(const QModelIndex & index, const QVariant & value, in
         case Listen:
             if (settings.value("fListen") != value) {
                 settings.setValue("fListen", value);
+                setRestartRequired(true);
+            }
+            break;
+#ifdef ENABLE_WALLET
+        case UseChangeAddress:
+            if (settings.value("fUseChangeAddress") != value) {
+                settings.setValue("fUseChangeAddress", value);
+                // Set fNotUseChangeAddress for backward compatibility reason
+                settings.setValue("fNotUseChangeAddress", !value.toBool());
+                setRestartRequired(true);
+            }
+            break;
+#endif
+        case CheckForUpdates:
+            if (settings.value("fCheckForUpdates") != value) {
+                settings.setValue("fCheckForUpdates", value);
+                fCheckForUpdates = value.toBool();
+            }
+            break;
+        case Theme:
+            if (settings.value("Theme") != value) {
+                settings.setValue("Theme", value);
                 setRestartRequired(true);
             }
             break;
@@ -534,4 +594,14 @@ void OptionsModel::checkAndMigrate()
     if (settings.contains("addrSeparateProxyTor") && settings.value("addrSeparateProxyTor").toString().endsWith("%2")) {
         settings.setValue("addrSeparateProxyTor", GetDefaultProxyAddress());
     }
+}
+
+bool OptionsModel::getRestartApp() const
+{
+    return restartApp;
+}
+
+void OptionsModel::setRestartApp(bool value)
+{
+    restartApp = value;
 }

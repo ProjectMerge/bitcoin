@@ -6,11 +6,9 @@
 #define BITCOIN_QT_UTILITYDIALOG_H
 
 #include <QDialog>
-#include <QWidget>
+#include <QObject>
 
-QT_BEGIN_NAMESPACE
-class QMainWindow;
-QT_END_NAMESPACE
+class BitcoinGUI;
 
 namespace interfaces {
     class Node;
@@ -48,7 +46,7 @@ class ShutdownWindow : public QWidget
 
 public:
     explicit ShutdownWindow(QWidget *parent=nullptr, Qt::WindowFlags f=Qt::Widget);
-    static QWidget* showShutdownWindow(QMainWindow* window);
+    static QWidget *showShutdownWindow(BitcoinGUI *window);
 
 protected:
     void closeEvent(QCloseEvent *event);

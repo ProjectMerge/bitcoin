@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2019 The Bitcoin Core developers
+// Copyright (c) 2016-2018 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -6,22 +6,34 @@
 #include <qt/forms/ui_modaloverlay.h>
 
 #include <qt/guiutil.h>
+#include <qt/styleSheet.h>
+#include <qt/platformstyle.h>
 
 #include <chainparams.h>
 
 #include <QResizeEvent>
 #include <QPropertyAnimation>
 
-ModalOverlay::ModalOverlay(bool enable_wallet, QWidget *parent) :
+ModalOverlay::ModalOverlay(bool enable_wallet, QWidget *parent, OverlayType _type) :
 QWidget(parent),
 ui(new Ui::ModalOverlay),
 bestHeaderHeight(0),
 bestHeaderDate(QDateTime()),
 layerIsVisible(false),
-userClosed(false)
+userClosed(false),
+type(_type)
 {
     ui->setupUi(this);
+
+    // Set stylesheet
+    SetObjectStyleSheet(ui->warningIcon, StyleSheetNames::ButtonTransparent);
+    SetObjectStyleSheet(ui->warningIconBackup, StyleSheetNames::ButtonTransparent);
+    QColor warningIconColor = GetStringStyleValue("modaloverlay/warning-icon-color", "#000000");
+    ui->warningIcon->setIcon(PlatformStyle::SingleColorIcon(":/icons/warning", warningIconColor));
+    ui->warningIconBackup->setIcon(PlatformStyle::SingleColorIcon(":/icons/backup_wallet", warningIconColor));
+
     connect(ui->closeButton, &QPushButton::clicked, this, &ModalOverlay::closeClicked);
+    connect(ui->walletBackupButton, &QPushButton::clicked, this, &ModalOverlay::backupWalletClicked);
     if (parent) {
         parent->installEventFilter(this);
         raise();
@@ -148,7 +160,7 @@ void ModalOverlay::tipUpdate(int count, const QDateTime& blockDate, double nVeri
 
 void ModalOverlay::UpdateHeaderSyncLabel() {
     int est_headers_left = bestHeaderDate.secsTo(QDateTime::currentDateTime()) / Params().GetConsensus().nPowTargetSpacing;
-    ui->numberOfBlocksLeft->setText(tr("Unknown. Syncing Headers (%1, %2%)...").arg(bestHeaderHeight).arg(QString::number(100.0 / (bestHeaderHeight + est_headers_left) * bestHeaderHeight, 'f', 1)));
+    ui->numberOfBlocksLeft->setText(tr("Unknown. Syncing Blocks (%1, %2%)...").arg(bestHeaderHeight).arg(QString::number(100.0 / (bestHeaderHeight + est_headers_left) * bestHeaderHeight, 'f', 1)));
 }
 
 void ModalOverlay::toggleVisibility()
@@ -181,4 +193,10 @@ void ModalOverlay::closeClicked()
 {
     showHide(true);
     userClosed = true;
+}
+
+void ModalOverlay::backupWalletClicked()
+{
+    Q_EMIT backupWallet();
+    showHide(true, true);
 }

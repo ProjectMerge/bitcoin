@@ -5,18 +5,15 @@
 #ifndef BITCOIN_WALLET_COINCONTROL_H
 #define BITCOIN_WALLET_COINCONTROL_H
 
-#include <optional.h>
-#include <outputtype.h>
 #include <policy/feerate.h>
 #include <policy/fees.h>
 #include <primitives/transaction.h>
-#include <script/standard.h>
+#include <wallet/wallet.h>
+
+#include <boost/optional.hpp>
 
 const int DEFAULT_MIN_DEPTH = 0;
 const int DEFAULT_MAX_DEPTH = 9999999;
-
-//! Default for -avoidpartialspends
-static constexpr bool DEFAULT_AVOIDPARTIALSPENDS = false;
 
 /** Coin Control Features. */
 class CCoinControl
@@ -25,7 +22,7 @@ public:
     //! Custom change destination, if not set an address is generated
     CTxDestination destChange;
     //! Override the default change type if set, ignored if destChange is set
-    Optional<OutputType> m_change_type;
+    boost::optional<OutputType> m_change_type;
     //! If false, allows unselected inputs, but requires all selected inputs be used
     bool fAllowOtherInputs;
     //! Includes watch only addresses which are solvable
@@ -33,11 +30,11 @@ public:
     //! Override automatic min/max checks on fee, m_feerate must be set if true
     bool fOverrideFeeRate;
     //! Override the wallet's m_pay_tx_fee if set
-    Optional<CFeeRate> m_feerate;
+    boost::optional<CFeeRate> m_feerate;
     //! Override the default confirmation target if set
-    Optional<unsigned int> m_confirm_target;
+    boost::optional<unsigned int> m_confirm_target;
     //! Override the wallet's m_signal_rbf if set
-    Optional<bool> m_signal_bip125_rbf;
+    boost::optional<bool> m_signal_bip125_rbf;
     //! Avoid partial use of funds sent to a given address
     bool m_avoid_partial_spends;
     //! Forbids inclusion of dirty (previously used) addresses

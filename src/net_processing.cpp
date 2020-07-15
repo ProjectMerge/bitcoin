@@ -2566,12 +2566,14 @@ bool ProcessMessage(CNode* pfrom, const std::string& msg_type, CDataStream& vRec
         // Stop processing the transaction early if
         // We are in blocks only mode and peer is either not whitelisted or whitelistrelay is off
         // or if this peer is supposed to be a block-relay-only peer
+#if 0
         if ((!g_relay_txes && !pfrom->HasPermission(PF_RELAY)) || (pfrom->m_tx_relay == nullptr))
         {
             LogPrint(BCLog::NET, "transaction sent in violation of protocol peer=%d\n", pfrom->GetId());
             pfrom->fDisconnect = true;
             return true;
         }
+#endif
 
         CTransactionRef ptx;
         vRecv >> ptx;

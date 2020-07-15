@@ -80,8 +80,9 @@ QValidator::State BitcoinAddressEntryValidator::validate(QString &input, int &po
     return state;
 }
 
-BitcoinAddressCheckValidator::BitcoinAddressCheckValidator(QObject *parent) :
-    QValidator(parent)
+BitcoinAddressCheckValidator::BitcoinAddressCheckValidator(QObject *parent, bool senderAddress) :
+    QValidator(parent),
+    m_senderAddress(senderAddress)
 {
 }
 

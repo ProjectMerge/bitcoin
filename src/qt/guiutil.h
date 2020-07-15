@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2020 The Bitcoin Core developers
+// Copyright (c) 2011-2018 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -17,6 +17,7 @@
 #include <QString>
 #include <QTableView>
 #include <QLabel>
+#include <QToolButton>
 
 class QValidatedLineEdit;
 class SendCoinsRecipient;
@@ -69,6 +70,13 @@ namespace GUIUtil
        @see  TransactionView::copyLabel, TransactionView::copyAmount, TransactionView::copyAddress
      */
     void copyEntryData(QAbstractItemView *view, int column, int role=Qt::EditRole);
+
+    /** Copy a field of the currently selected entry of a view to the clipboard. Does nothing if nothing
+        is selected.
+       @param[in] role    Data role to extract from the model
+       @see  QRCToken::copyTokenAddress
+     */
+    void copyEntryDataFromList(QAbstractItemView *view, int role=Qt::EditRole);
 
     /** Return a field of the currently selected entry as a QString. Does nothing if nothing
         is selected.
@@ -127,8 +135,14 @@ namespace GUIUtil
     // Open debug.log
     void openDebugLogfile();
 
+    // Open merge.conf
+    void openConfigfile();	
+
     // Open the config file
     bool openBitcoinConf();
+
+    // Open the masternode config file
+    void openMNConfigfile();
 
     /** Qt event filter that intercepts ToolTipChange events, and replaces the tooltip with a rich text
       representation if needed. This assures that Qt can word-wrap long tooltip messages.
@@ -163,7 +177,7 @@ namespace GUIUtil
         Q_OBJECT
 
         public:
-            TableViewLastColumnResizingFixer(QTableView* table, int lastColMinimumWidth, int allColsMinimumWidth, QObject *parent);
+            TableViewLastColumnResizingFixer(QTableView* table, int lastColMinimumWidth, int allColsMinimumWidth, QObject *parent, int columnStretch = 2);
             void stretchColumnWidth(int column);
 
         private:
@@ -202,7 +216,7 @@ namespace GUIUtil
     /* Format CNodeStats.nServices bitmask into a user-readable string */
     QString formatServicesStr(quint64 mask);
 
-    /* Format a CNodeStats.m_ping_usec into a user-readable string or display N/A, if 0*/
+    /* Format a CNodeCombinedStats.dPingTime into a user-readable string or display N/A, if 0*/
     QString formatPingTime(int64_t ping_usec);
 
     /* Format a CNodeCombinedStats.nTimeOffset into a user-readable string. */
@@ -270,6 +284,9 @@ namespace GUIUtil
      * Writes to debug.log short info about the used Qt and the host system.
      */
     void LogQtInfo();
+
+    void formatToolButtons(QToolButton* btn1, QToolButton* btn2 = 0, QToolButton* btn3 = 0);
+
 } // namespace GUIUtil
 
 #endif // BITCOIN_QT_GUIUTIL_H
