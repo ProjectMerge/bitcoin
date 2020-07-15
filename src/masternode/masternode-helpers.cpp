@@ -13,6 +13,8 @@
 #include <shutdown.h>
 #include <util/validation.h>
 
+#include <boost/thread/thread.hpp>
+
 CMasternodeSigner masternodeSigner;
 
 bool CMasternodeSigner::GetKeysFromSecret(std::string strSecret, CKey& keyRet, CPubKey& pubkeyRet)
