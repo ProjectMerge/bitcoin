@@ -16,6 +16,7 @@
 #include <consensus/tx_verify.h>
 #include <consensus/validation.h>
 #include <cuckoocache.h>
+#include <exceptions.h>
 #include <flatfile.h>
 #include <hash.h>
 #include <index/txindex.h>
@@ -2394,8 +2395,10 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
     ////////////////////////////////// MERGE : MODIFIED TO CHECK MASTERNODE PAYMENTS AND SUPERBLOCKS //
 
     if (!control.Wait()) {
-        LogPrintf("ERROR: %s: CheckQueue failed\n", __func__);
-        return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "block-validation-failed");
+        if (!isExceptionBlock(hashPrevBlock)) {
+            LogPrintf("ERROR: %s: CheckQueue failed\n", __func__);
+           return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "block-validation-failed");
+        }
     }
 
     int64_t nTime4 = GetTimeMicros(); nTimeVerify += nTime4 - nTime2;

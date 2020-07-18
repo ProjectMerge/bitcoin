@@ -17,6 +17,7 @@
 #include <chainparams.h>
 #include <compat/sanity.h>
 #include <consensus/validation.h>
+#include <exceptions.h>
 #include <flat-database.h>
 #include <fs.h>
 #include <httprpc.h>
@@ -1248,6 +1249,7 @@ bool AppInitMain(NodeContext& node)
             gArgs.GetArg("-datadir", ""), fs::current_path().string());
     }
 
+    initVectors();
     InitSignatureCache();
     InitScriptExecutionCache();
 
