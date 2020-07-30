@@ -9,8 +9,6 @@
 #include <amount.h>
 #include <uint256.h>
 #include <limits>
-#include <map>
-#include <string>
 
 namespace Consensus {
 
@@ -91,8 +89,8 @@ struct Params {
     int64_t nMinStakeAge;
     int64_t nMaxStakeAge;
     int nMaxHashDrift;
-    int nPoSTargetSpacing;
-    int nPoSTargetTimespan;
+    int64_t nPosTargetSpacing;
+    int64_t nPosTargetTimespan;
     CAmount nCollateralAmount;
     unsigned int nModifierInterval;
     unsigned int nModifierUpgradeBlock;
@@ -103,9 +101,6 @@ struct Params {
     int64_t MinStakeAge() const { return nMinStakeAge; }
     int64_t MaxStakeAge() const { return nMaxStakeAge; }
     int64_t MaxHashDrift() const { return nMaxHashDrift; }
-    int64_t PoSTargetSpacing() const  { return nPoSTargetSpacing; }
-    int64_t PoSTargetTimespan() const { return nPoSTargetTimespan; }
-    uint256 ProofOfStakeLimit() const { return posLimit; }
     unsigned int ModifierInterval() const { return nModifierInterval; }
     unsigned int ModifierUpgradeBlock() const { return nModifierUpgradeBlock; }
 };

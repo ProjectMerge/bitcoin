@@ -90,8 +90,8 @@ public:
         consensus.posLimit = uint256S("000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nMinStakeAge = 60 * 60;
         consensus.nMaxHashDrift = 45;
-        consensus.nPoSTargetSpacing = consensus.nPowTargetSpacing;
-        consensus.nPoSTargetTimespan = consensus.nPowTargetTimespan;
+        consensus.nPosTargetSpacing = consensus.nPowTargetSpacing;
+        consensus.nPosTargetTimespan = consensus.nPowTargetTimespan;
         consensus.nModifierInterval = 60;
         consensus.nModifierUpgradeBlock = 50;
         consensus.nMasternodeMinimumConfirmations = 15;
@@ -188,8 +188,8 @@ public:
         consensus.posLimit = uint256S("000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nMinStakeAge = 60 * 60;
         consensus.nMaxHashDrift = 45;
-        consensus.nPoSTargetSpacing = consensus.nPowTargetSpacing;
-        consensus.nPoSTargetTimespan = consensus.nPowTargetTimespan;
+        consensus.nPosTargetSpacing = consensus.nPowTargetSpacing;
+        consensus.nPosTargetTimespan = consensus.nPowTargetTimespan;
         consensus.nModifierInterval = 60;
         consensus.nModifierUpgradeBlock = 50;
         consensus.nMasternodeMinimumConfirmations = 15;
