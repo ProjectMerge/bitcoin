@@ -13,7 +13,6 @@
 #include <wallet/coincontrol.h>
 #include <wallet/rpcwallet.h>
 
-
 CActiveMasternode activeMasternode;
 
 //
@@ -41,7 +40,7 @@ void CActiveMasternode::ManageStatus(CConnman& connman)
     if (status == ACTIVE_MASTERNODE_INITIAL) {
         CMasternode* pmn;
         pmn = mnodeman.Find(pubKeyMasternode);
-        if (pmn != nullptr) {
+        if (pmn) {
             pmn->Check();
             if (pmn->IsEnabled() && pmn->protocolVersion == PROTOCOL_VERSION)
                 EnableHotColdMasterNode(pmn->vin, pmn->addr);
@@ -176,7 +175,7 @@ bool CActiveMasternode::SendMasternodePing(std::string& errorMessage, CConnman& 
 
     // Update lastPing for our masternode in Masternode list
     CMasternode* pmn = mnodeman.Find(vin);
-    if (pmn != nullptr) {
+    if (pmn) {
         if (pmn->IsPingedWithin(MASTERNODE_PING_SECONDS, mnp.sigTime)) {
             errorMessage = "Too early to send Masternode Ping";
             return false;

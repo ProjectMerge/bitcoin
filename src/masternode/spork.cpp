@@ -38,13 +38,14 @@ void CSporkManager::ProcessSpork(CNode* pfrom, const std::string& strCommand, CD
         CSporkMessage spork;
         vRecv >> spork;
 
-        const uint256 &hash = spork.GetHash();
+        const uint256& hash = spork.GetHash();
 
         std::string strLogMsg;
         {
             LOCK(cs_main);
             EraseInvRequest(pfrom, hash);
-            if(!::ChainActive().Tip()) return;
+            if (!::ChainActive().Tip())
+                return;
             strLogMsg = strprintf("SPORK -- hash: %s id: %d value: %10d bestHeight: %d peer=%d",
                 hash.ToString(), spork.nSporkID,
                 spork.nValue, ::ChainActive().Height(),
@@ -62,7 +63,7 @@ void CSporkManager::ProcessSpork(CNode* pfrom, const std::string& strCommand, CD
             LogPrint(BCLog::SPORK, "%s new\n", strLogMsg);
         }
 
-        if(!spork.CheckSignature()) {
+        if (!spork.CheckSignature()) {
             LOCK(cs_main);
             LogPrint(BCLog::SPORK, "CSporkManager::ProcessSpork -- ERROR: invalid signature\n");
             //Misbehaving(pfrom->GetId(), 100);
@@ -86,7 +87,6 @@ void CSporkManager::ProcessSpork(CNode* pfrom, const std::string& strCommand, CD
             it++;
         }
     }
-
 }
 
 void CSporkManager::ExecuteSpork(int nSporkID, int nValue)

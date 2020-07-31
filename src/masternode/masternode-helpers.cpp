@@ -5,9 +5,9 @@
 
 #include <key_io.h>
 #include <masternode/activemasternode.h>
-#include <masternode/masternodeman.h>
-#include <masternode/masternode-sync.h>
 #include <masternode/masternode-payments.h>
+#include <masternode/masternode-sync.h>
+#include <masternode/masternodeman.h>
 #include <node/context.h>
 #include <rpc/blockchain.h>
 #include <shutdown.h>
@@ -116,4 +116,3 @@ void ThreadMasternodePool()
         }
     }
 }
-

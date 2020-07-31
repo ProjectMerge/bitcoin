@@ -204,7 +204,7 @@ void CMasternodeSync::Process(CConnman& connman)
     LogPrintf("CMasternodeSync::Process() - tick %d RequestedMasternodeAssets %d\n", tick, RequestedMasternodeAssets);
 
     // Calculate "progress" for LOG reporting / GUI notification
-    double nSyncProgress = double(RequestedMasternodeAttempt + (RequestedMasternodeAssets - 1) * 8) / (8*4);
+    double nSyncProgress = double(RequestedMasternodeAttempt + (RequestedMasternodeAssets - 1) * 8) / (8 * 4);
     uiInterface.NotifyAdditionalDataSyncProgressChanged(nSyncProgress);
 
     if (RequestedMasternodeAssets == MASTERNODE_SYNC_INITIAL)
@@ -215,8 +215,7 @@ void CMasternodeSync::Process(CConnman& connman)
 
     std::vector<CNode*> vNodesCopy = connman.CopyNodeVector(CConnman::FullyConnectedOnly);
 
-    for (auto& pnode : vNodesCopy)
-    {
+    for (auto& pnode : vNodesCopy) {
         if (RequestedMasternodeAssets == MASTERNODE_SYNC_SPORKS) {
             if (netfulfilledman.HasFulfilledRequest(pnode->addr, "getspork"))
                 continue;

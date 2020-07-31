@@ -63,6 +63,7 @@
 #include <masternode/masternode-payments.h>
 #include <masternode/masternode-sync.h>
 #include <masternode/masternode.h>
+#include <masternode/masternodedb.h>
 #include <masternode/masternodeman.h>
 #include <masternode/masternodeconfig.h>
 #include <masternode/masternode-helpers.h>

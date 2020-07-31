@@ -56,7 +56,6 @@ const char* FINALBUDGET = "fbs";
 const char* FINALBUDGETVOTE = "fbvote";
 const char* SYNCSTATUSCOUNT = "ssc";
 const char* DSEG = "dseg";
-const char* DSEEP = "dseep";
 }; // namespace NetMsgType
 
 static const char* ppszTypeName[] = {
@@ -118,7 +117,6 @@ const static std::string allNetMessageTypes[] = {
     NetMsgType::FINALBUDGETVOTE,
     NetMsgType::SYNCSTATUSCOUNT,
     NetMsgType::DSEG,
-    NetMsgType::DSEEP,
     NetMsgType::FEEFILTER,
     NetMsgType::SENDCMPCT,
     NetMsgType::CMPCTBLOCK,

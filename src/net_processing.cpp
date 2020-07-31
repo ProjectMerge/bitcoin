@@ -1988,11 +1988,6 @@ bool ProcessMessage(CNode* pfrom, const std::string& msg_type, CDataStream& vRec
         return true;
     }
 
-    if (msg_type == NetMsgType::DSEEP) {
-        //! if we see these guys, just drop the messsage and move on
-        return true;
-    }
-
     if (!(pfrom->GetLocalServices() & NODE_BLOOM) &&
               (msg_type == NetMsgType::FILTERLOAD ||
                msg_type == NetMsgType::FILTERADD))
@@ -3326,7 +3321,7 @@ bool ProcessMessage(CNode* pfrom, const std::string& msg_type, CDataStream& vRec
     }
 
     // Ignore unknown commands for extensibility
-    LogPrint(BCLog::NET, "Unknown command \"%s\" from peer=%d\n", SanitizeString(msg_type), pfrom->GetId());
+    // LogPrint(BCLog::NET, "Unknown command \"%s\" from peer=%d\n", SanitizeString(msg_type), pfrom->GetId());
 
     return true;
 }

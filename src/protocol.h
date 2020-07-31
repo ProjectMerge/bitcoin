@@ -294,7 +294,6 @@ extern const char *FINALBUDGETVOTE;
  */
 extern const char *SYNCSTATUSCOUNT;
 extern const char *DSEG;
-extern const char *DSEEP;
 }; // namespace NetMsgType
 
 /* Get a vector of all valid message types (see above) */

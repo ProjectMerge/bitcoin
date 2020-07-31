@@ -153,6 +153,7 @@ BITCOIN_CORE_H = \
   masternode/masternode.h \
   masternode/masternode-payments.h \
   masternode/masternode-sync.h \
+  masternode/masternodedb.h \
   masternode/masternodeman.h \
   masternode/masternodeconfig.h \
   masternode/masternode-helpers.h \
@@ -306,6 +307,7 @@ libbitcoin_server_a_SOURCES = \
   masternode/masternode.cpp \
   masternode/masternode-payments.cpp \
   masternode/masternode-sync.cpp \
+  masternode/masternodedb.cpp \
   masternode/masternodeman.cpp \
   masternode/masternodeconfig.cpp \
   masternode/masternode-helpers.cpp \
