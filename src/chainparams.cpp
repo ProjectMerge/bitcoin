@@ -179,7 +179,7 @@ public:
         consensus.nPowTargetSpacing =  1 * 60;
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
-        consensus.nLastPoWBlock = 57601;
+        consensus.nLastPoWBlock = 300;
         consensus.nMaxReorganizationDepth = 100;
         consensus.nRuleChangeActivationThreshold = 1916;
         consensus.nMinerConfirmationWindow = 2016;
@@ -210,9 +210,9 @@ public:
         m_assumed_blockchain_size = 1;
         m_assumed_chain_state_size = 1;
 
-        genesis = CreateGenesisBlock(1545670001, 4480615, 0x1e0ffff0, 1, 0 * COIN, true);
+        genesis = CreateGenesisBlock(1596132246, 1543987, 0x1e0ffff0, 1, 0 * COIN, true);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("0x00000ef935afac04f6f8f347d40eb80f048cd89b010dc2bb27770054bd54fd28"));
+        assert(consensus.hashGenesisBlock == uint256S("000006720fa94c5b23d310b886feecccd14cd7465e0b2bb41651afa1c81498a0"));
         assert(genesis.hashMerkleRoot == uint256S("0x705ea6c69f9003f9f45e9e02f8d541a98a0edd231de7e1a25b937a5b21085096"));
 
         vFixedSeeds.clear();
