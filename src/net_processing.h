@@ -98,6 +98,9 @@ extern bool IsAnnouncementAllowed(const CNode* pfrom, const int requestedAnnounc
 extern void RequestInv(const CNode* pfrom, const CInv &inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 extern void EraseInvRequest(const CNode* pfrom, const uint256& hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
+/** Return the current protocol version in use */
+int ActiveProtocol();
+
 /** Increase a node's misbehavior score. */
 void Misbehaving(NodeId nodeid, int howmuch, const std::string& message="") EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 

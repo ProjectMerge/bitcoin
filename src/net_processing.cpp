@@ -4186,6 +4186,13 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
     return true;
 }
 
+int ActiveProtocol()
+{
+    if (Params().NetworkIDString() == CBaseChainParams::MAIN)
+        return 70913;
+    return 70914;
+}
+
 class CNetProcessingCleanup
 {
 public:
