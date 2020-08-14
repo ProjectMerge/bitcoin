@@ -34,7 +34,7 @@ bool GetBlockHash(uint256& hash, int nBlockHeight)
     const CBlockIndex* BlockLastSolved = ::ChainActive().Tip();
     const CBlockIndex* BlockReading = ::ChainActive().Tip();
 
-    if (BlockLastSolved == nullptr || BlockLastSolved->nHeight == 0 || ::ChainActive().Tip()->nHeight + 1 < nBlockHeight)
+    if (!BlockLastSolved || BlockLastSolved->nHeight == 0 || ::ChainActive().Tip()->nHeight + 1 < nBlockHeight)
         return false;
 
     int nBlocksAgo = 0;
@@ -51,7 +51,7 @@ bool GetBlockHash(uint256& hash, int nBlockHeight)
         }
         n++;
 
-        if (BlockReading->pprev == nullptr) {
+        if (!BlockReading->pprev) {
             assert(BlockReading);
             break;
         }
@@ -272,7 +272,7 @@ int64_t CMasternode::GetLastPaid()
             }
         }
 
-        if (BlockReading->pprev == nullptr) {
+        if (!BlockReading->pprev) {
             assert(BlockReading);
             break;
         }
@@ -455,6 +455,8 @@ bool CMasternodeBroadcast::CheckDefaultPort(std::string strService, std::string&
 
 bool CMasternodeBroadcast::CheckAndUpdate(int& nDos, CConnman& connman)
 {
+    nDos = 0;
+
     // make sure signature isn't in the future (past is OK)
     if (sigTime > GetAdjustedTime() + 60 * 60) {
         LogPrint(BCLog::MASTERNODE, "mnb - Signature rejected, too far into the future %s\n", vin.prevout.hash.ToString());
@@ -462,11 +464,8 @@ bool CMasternodeBroadcast::CheckAndUpdate(int& nDos, CConnman& connman)
         return false;
     }
 
-    std::string vchPubKey(pubKeyCollateralAddress.begin(), pubKeyCollateralAddress.end());
-    std::string vchPubKey2(pubKeyMasternode.begin(), pubKeyMasternode.end());
-    std::string strMessage = addr.ToString() + boost::lexical_cast<std::string>(sigTime) + vchPubKey + vchPubKey2 + boost::lexical_cast<std::string>(protocolVersion);
-
-    if (protocolVersion < masternodePayments.GetMinMasternodePaymentsProto()) {
+    const int devVersionDifference = 1;
+    if (protocolVersion < masternodePayments.GetMinMasternodePaymentsProto() - devVersionDifference) {
         LogPrint(BCLog::MASTERNODE, "mnb - ignoring outdated Masternode %s protocol version %d\n", vin.prevout.hash.ToString(), protocolVersion);
         return false;
     }
@@ -482,7 +481,6 @@ bool CMasternodeBroadcast::CheckAndUpdate(int& nDos, CConnman& connman)
 
     CScript pubkeyScript2;
     pubkeyScript2 = GetScriptForDestination(PKHash(pubKeyMasternode));
-
     if (pubkeyScript2.size() != 25) {
         LogPrint(BCLog::MASTERNODE, "mnb - pubkey2 the wrong size\n");
         nDos = 100;
@@ -494,11 +492,37 @@ bool CMasternodeBroadcast::CheckAndUpdate(int& nDos, CConnman& connman)
         return false;
     }
 
-    std::string errorMessage = "";
-    if (!masternodeSigner.VerifyMessage(pubKeyCollateralAddress, sig, strMessage, errorMessage)) {
-        LogPrint(BCLog::MASTERNODE, "mnb - Got bad Masternode address signature\n");
-        nDos = 100;
+    // incorrect ping or its sigTime
+    if (lastPing == CMasternodePing() || !lastPing.CheckAndUpdate(nDos, connman, false, true))
         return false;
+
+    std::string strMessage;
+    std::string errorMessage = "";
+
+    // be a bit more tolerant regarding signatures..
+    {
+        std::string vchPubKey(pubKeyCollateralAddress.begin(), pubKeyCollateralAddress.end());
+        std::string vchPubKey2(pubKeyMasternode.begin(), pubKeyMasternode.end());
+        std::string strMessage = addr.ToString(false) + boost::lexical_cast<std::string>(sigTime) + vchPubKey + vchPubKey2 + boost::lexical_cast<std::string>(protocolVersion);
+
+        if (!masternodeSigner.VerifyMessage(pubKeyCollateralAddress, sig, strMessage, errorMessage)) {
+            if (addr.ToString() != addr.ToString(false)) {
+                // maybe it's wrong format, try again with the old one
+                strMessage = addr.ToString() + boost::lexical_cast<std::string>(sigTime) + vchPubKey + vchPubKey2 + boost::lexical_cast<std::string>(protocolVersion);
+
+                if (!masternodeSigner.VerifyMessage(pubKeyCollateralAddress, sig, strMessage, errorMessage)) {
+                    // didn't work either
+                    LogPrintf("mnb - Got bad Masternode address signature, sanitized error: %s\n", SanitizeString(errorMessage));
+                    // there is a bug in old MN signatures, ignore such MN but do not ban the peer we got this from
+                    return false;
+                }
+            } else {
+                // nope, sig is actually wrong
+                LogPrintf("mnb - Got bad Masternode address signature, sanitized error: %s\n", SanitizeString(errorMessage));
+                // there is a bug in old MN signatures, ignore such MN but do not ban the peer we got this from
+                return false;
+            }
+        }
     }
 
     //search existing Masternode list, this is where we update existing Masternodes with new mnb broadcasts

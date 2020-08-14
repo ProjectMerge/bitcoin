@@ -322,6 +322,10 @@ bool CActiveMasternode::GetMasterNodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secr
 // Extract Masternode vin information from output
 bool CActiveMasternode::GetVinFromOutput(COutput out, CTxIn& vin, CPubKey& pubkey, CKey& secretKey)
 {
+    // wait for reindex and/or import to finish
+    if (fImporting || fReindex)
+        return false;
+
     CScript pubScript;
 
     vin = CTxIn(out.tx->GetHash(), out.i);
