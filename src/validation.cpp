@@ -20,6 +20,7 @@
 #include <flatfile.h>
 #include <hash.h>
 #include <index/txindex.h>
+#include <legacyclients.h>
 #include <logging.h>
 #include <logging/timer.h>
 #include <policy/fees.h>
@@ -699,6 +700,10 @@ bool MemPoolAccept::PreChecks(ATMPArgs& args, Workspace& ws)
     if (!Consensus::CheckTxInputs(tx, state, m_view, GetSpendHeight(m_view), nFees)) {
         return error("%s: Consensus::CheckTxInputs: %s, %s", __func__, tx.GetHash().ToString(), state.ToString());
     }
+
+    // No segwit transactions allowed in legacy mode
+    if (tx.HasWitness() && IsLegacyMode())
+        return state.Invalid(TxValidationResult::TX_NOT_STANDARD, "bad-witness-legacy-mode");
 
     // Check for non-standard pay-to-script-hash in inputs
     if (fRequireStandard && !AreInputsStandard(tx, m_view))
@@ -3813,6 +3818,10 @@ static bool ContextualCheckBlock(const CBlock& block, BlockValidationState& stat
             fHaveWitness = true;
         }
     }
+
+    // No segwit transactions allowed in legacy mode
+    if (fHaveWitness && IsLegacyMode())
+        return state.Invalid(BlockValidationResult::BLOCK_MUTATED, "bad-witness-legacy-mode", strprintf("%s : unexpected witness data found", __func__));
 
     // No witness data is allowed in blocks that don't commit to witness data, as this would otherwise leave room for spam
     if (!fHaveWitness) {

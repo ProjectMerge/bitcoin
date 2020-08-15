@@ -159,6 +159,7 @@ BITCOIN_CORE_H = \
   masternode/masternode-helpers.h \
   masternode/netfulfilledman.h \
   masternode/spork.h \
+  legacyclients.h \
   logging.h \
   logging/timer.h \
   memusage.h \
@@ -304,6 +305,7 @@ libbitcoin_server_a_SOURCES = \
   interfaces/node.cpp \
   init.cpp \
   dbwrapper.cpp \
+  legacyclients.cpp \
   masternode/activemasternode.cpp \
   masternode/masternode.cpp \
   masternode/masternode-payments.cpp \

@@ -29,6 +29,7 @@ static const int64_t SPORK_9_MASTERNODE_BUDGET_ENFORCEMENT_DEFAULT = 4070908800;
 static const int64_t SPORK_10_MASTERNODE_PAY_UPDATED_NODES_DEFAULT = 4070908800;
 static const int64_t SPORK_13_ENABLE_SUPERBLOCKS_DEFAULT = 4070908800;
 static const int64_t SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2_DEFAULT = 4070908800;
+static const int64_t SPORK_16_CLIENT_COMPAT_MODE_DEFAULT = 4070908800;
 }
 
 void CSporkManager::ProcessSpork(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, CConnman& connman)
@@ -139,6 +140,8 @@ int64_t CSporkManager::GetSporkValue(int nSporkID)
         return SPORK_13_ENABLE_SUPERBLOCKS_DEFAULT;
     case SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2:
         return SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2_DEFAULT;
+    case SPORK_16_CLIENT_COMPAT_MODE:
+        return SPORK_16_CLIENT_COMPAT_MODE_DEFAULT;
     default:
         LogPrint(BCLog::SPORK, "CSporkManager::GetSporkValue -- Unknown Spork ID %d\n", nSporkID);
         return -1;
@@ -162,6 +165,8 @@ int CSporkManager::GetSporkIDByName(std::string strName)
         return SPORK_13_ENABLE_SUPERBLOCKS;
     if (strName == "SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2")
         return SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2;
+    if (strName == "SPORK_16_CLIENT_COMPAT_MODE")
+        return SPORK_16_CLIENT_COMPAT_MODE_DEFAULT;
     LogPrint(BCLog::SPORK, "CSporkManager::GetSporkIDByName -- Unknown Spork name '%s'\n", strName);
     return -1;
 }
@@ -183,6 +188,8 @@ std::string CSporkManager::GetSporkNameByID(int id)
         return "SPORK_13_ENABLE_SUPERBLOCKS";
     if (id == SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2)
         return "SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2";
+    if (id == SPORK_16_CLIENT_COMPAT_MODE)
+        return "SPORK_16_CLIENT_COMPAT_MODE";
     return "Unknown";
 }
 
