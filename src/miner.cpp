@@ -26,6 +26,7 @@
 #include <util/moneystr.h>
 #include <util/system.h>
 #include <util/validation.h>
+#include <wallet/stake.h>
 #include <wallet/wallet.h>
 
 #include <algorithm>
@@ -177,7 +178,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
         bool fStakeFound = false;
         if (nSearchTime >= nLastCoinStakeSearchTime) {
             unsigned int nTxNewTime = 0;
-            if (m_wallet->CreateCoinStake(*m_wallet, pblock->nBits, coinstakeTx, nTxNewTime)) {
+            if (stake.CreateCoinStake(*m_wallet, pblock->nBits, coinstakeTx, nTxNewTime)) {
                 pblock->nTime = nTxNewTime;
                 coinbaseTx.vout[0].SetEmpty();
                 pblock->vtx[1] = MakeTransactionRef(std::move(coinstakeTx));

@@ -694,12 +694,6 @@ private:
     // Local time that the tip block was received. Used to schedule wallet rebroadcasts.
     std::atomic<int64_t> m_best_block_time {0};
 
-    // Stake Settings
-    unsigned int nHashDrift = 45;
-    unsigned int nStakeSplitThreshold = 2000;
-    unsigned int nHashInterval = 22;
-    int nStakeSetUpdateTime = 300;
-
     /**
      * Used to keep track of spent outpoints, and
      * detect and report conflicts (double-spends or
@@ -1296,12 +1290,7 @@ public:
     //! Connect the signals from ScriptPubKeyMans to the signals in CWallet
     void ConnectScriptPubKeyManNotifiers();
 
-    //! stake functions
-    bool MintableCoins();
-    bool SelectStakeCoins(std::set<std::pair<const CWalletTx*, unsigned int> >& setCoins, CAmount nTargetAmount) const;
-    bool CreateCoinStake(const CWallet& wallet, unsigned int nBits, CMutableTransaction& txNew, unsigned int& nTxNewTime);
     void GetScriptForMining(CScript& script);
-    void BestStakeSeen(uint256& hash);
 };
 
 /**

@@ -88,7 +88,7 @@ struct Params {
     uint256 posLimit;
     int64_t nMinStakeAge;
     int64_t nMaxStakeAge;
-    int nMaxHashDrift;
+    unsigned int nMaxHashDrift;
     int64_t nPosTargetSpacing;
     int64_t nPosTargetTimespan;
     CAmount nCollateralAmount;
