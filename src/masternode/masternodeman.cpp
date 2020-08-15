@@ -200,7 +200,7 @@ void CMasternodeMan::Clear()
 int CMasternodeMan::stable_size()
 {
     int nStable_size = 0;
-    int nMinProtocol = PROTOCOL_VERSION;
+    int nMinProtocol = ActiveProtocol();
     int64_t nMasternode_Min_Age = MN_WINNER_MINIMUM_AGE;
     int64_t nMasternode_Age = 0;
 
@@ -590,7 +590,7 @@ void CMasternodeMan::ProcessMessage(CNode* pfrom, const std::string& strCommand,
 
     LOCK(cs_process_message);
 
-    if (strCommand == "mnb") {
+    if (strCommand == NetMsgType::MNBROADCAST) {
 
         CMasternodeBroadcast mnb;
         vRecv >> mnb;
@@ -628,9 +628,10 @@ void CMasternodeMan::ProcessMessage(CNode* pfrom, const std::string& strCommand,
             if (nDoS > 0)
                 Misbehaving(pfrom->GetId(), nDoS);
         }
+        return;
     }
 
-    else if (strCommand == "mnp") {
+    else if (strCommand == NetMsgType::MNPING) {
         CMasternodePing mnp;
         vRecv >> mnp;
 
@@ -645,6 +646,7 @@ void CMasternodeMan::ProcessMessage(CNode* pfrom, const std::string& strCommand,
             return;
 
         if (nDoS > 0) {
+            LOCK(cs_main);
             Misbehaving(pfrom->GetId(), nDoS);
         } else {
             CMasternode* pmn = Find(mnp.vin);
@@ -655,9 +657,10 @@ void CMasternodeMan::ProcessMessage(CNode* pfrom, const std::string& strCommand,
         // something significant is broken or mn is unknown,
         // we might have to ask for a masternode entry once
         AskForMN(pfrom, mnp.vin, connman);
+        return;
     }
 
-    else if (strCommand == "dseg") { //Get Masternode list or specific entry
+    else if (strCommand == NetMsgType::DSEG) {
 
         CTxIn vin;
         vRecv >> vin;
@@ -710,179 +713,7 @@ void CMasternodeMan::ProcessMessage(CNode* pfrom, const std::string& strCommand,
             connman.PushMessage(pfrom, CNetMsgMaker(pfrom->GetSendVersion()).Make("ssc", MASTERNODE_SYNC_LIST, nInvCount));
             LogPrint(BCLog::MASTERNODE, "dseg - Sent %d Masternode entries to peer %i\n", nInvCount, pfrom->GetId());
         }
-    }
-
-    else if (strCommand == "dsee") {
-
-        if (sporkManager.IsSporkActive(Spork::SPORK_10_MASTERNODE_PAY_UPDATED_NODES))
-            return;
-
-        CTxIn vin;
-        CService addr;
-        CPubKey pubkey;
-        CPubKey pubkey2;
-        std::vector<unsigned char> vchSig;
-        int64_t sigTime;
-        int count;
-        int current;
-        int64_t lastUpdated;
-        int protocolVersion;
-        CScript donationAddress;
-        int donationPercentage;
-        std::string strMessage;
-
-        vRecv >> vin >> addr >> vchSig >> sigTime >> pubkey >> pubkey2 >> count >> current >> lastUpdated >> protocolVersion >> donationAddress >> donationPercentage;
-
-        // make sure signature isn't in the future (past is OK)
-        if (sigTime > GetAdjustedTime() + 60 * 60) {
-            LogPrint(BCLog::MASTERNODE, "%s::ProcessMessage() : dsee - Signature rejected, too far into the future %s\n", __func__, vin.prevout.hash.ToString());
-            Misbehaving(pfrom->GetId(), 1);
-            return;
-        }
-
-        std::string vchPubKey(pubkey.begin(), pubkey.end());
-        std::string vchPubKey2(pubkey2.begin(), pubkey2.end());
-
-        strMessage = addr.ToString() + std::to_string(sigTime) + vchPubKey + vchPubKey2 + std::to_string(protocolVersion) + donationAddress.ToString() + std::to_string(donationPercentage);
-
-        if (protocolVersion < masternodePayments.GetMinMasternodePaymentsProto()) {
-            LogPrint(BCLog::MASTERNODE, "CMasternodeMan::ProcessMessage() : dsee - ignoring outdated Masternode %s protocol version %d < %d\n", vin.prevout.hash.ToString(), protocolVersion, masternodePayments.GetMinMasternodePaymentsProto());
-            Misbehaving(pfrom->GetId(), 1);
-            return;
-        }
-
-        CScript pubkeyScript;
-        pubkeyScript = GetScriptForDestination(PKHash(pubkey));
-
-        if (pubkeyScript.size() != 25) {
-            LogPrint(BCLog::MASTERNODE, "%s::ProcessMessage() : dsee - pubkey the wrong size\n", __func__);
-            Misbehaving(pfrom->GetId(), 100);
-            return;
-        }
-
-        CScript pubkeyScript2;
-        pubkeyScript2 = GetScriptForDestination(PKHash(pubkey2));
-        if (pubkeyScript2.size() != 25) {
-            LogPrint(BCLog::MASTERNODE, "%s::ProcessMessage() : dsee - pubkey2 the wrong size\n", __func__);
-            Misbehaving(pfrom->GetId(), 100);
-            return;
-        }
-
-        if (!vin.scriptSig.empty()) {
-            LogPrint(BCLog::MASTERNODE, "%s::ProcessMessage() : dsee - Ignore Not Empty ScriptSig %s\n", __func__, vin.prevout.hash.ToString());
-            Misbehaving(pfrom->GetId(), 100);
-            return;
-        }
-
-        std::string errorMessage = "";
-        if (!masternodeSigner.VerifyMessage(pubkey, vchSig, strMessage, errorMessage)) {
-            LogPrint(BCLog::MASTERNODE, "%s::ProcessMessage() : dsee - Got bad Masternode address signature\n", __func__);
-            Misbehaving(pfrom->GetId(), 100);
-            return;
-        }
-
-        //search existing Masternode list, this is where we update existing Masternodes with new dsee broadcasts
-        CMasternode* pmn = this->Find(vin);
-        if (pmn) {
-            // count == -1 when it's a new entry
-            //   e.g. We don't want the entry relayed/time updated when we're syncing the list
-            // mn.pubkey = pubkey, IsVinAssociatedWithPubkey is validated once below,
-            //   after that they just need to match
-            if (count == -1 && pmn->pubKeyCollateralAddress == pubkey && (GetAdjustedTime() - pmn->nLastDsee > MASTERNODE_MIN_MNB_SECONDS)) {
-                if (pmn->protocolVersion > GETHEADERS_VERSION && sigTime - pmn->lastPing.sigTime < MASTERNODE_MIN_MNB_SECONDS)
-                    return;
-                if (pmn->nLastDsee < sigTime) { //take the newest entry
-                    LogPrint(BCLog::MASTERNODE, "%s::ProcessMessage() :  dsee - Got updated entry for %s\n", __func__, vin.prevout.hash.ToString());
-                    if (pmn->protocolVersion < GETHEADERS_VERSION) {
-                        pmn->pubKeyMasternode = pubkey2;
-                        pmn->sigTime = sigTime;
-                        pmn->sig = vchSig;
-                        pmn->protocolVersion = protocolVersion;
-                        pmn->addr = addr;
-                        //fake ping
-                        pmn->lastPing = CMasternodePing(vin);
-                    }
-                    pmn->nLastDsee = sigTime;
-                    pmn->Check();
-                    if (pmn->IsEnabled()) {
-                        std::vector<CNode*> vNodesCopy = connman.CopyNodeVector(CConnman::FullyConnectedOnly);
-                        for (CNode* pnode : vNodesCopy) {
-                            if (pnode->nVersion >= masternodePayments.GetMinMasternodePaymentsProto())
-                                connman.PushMessage(pnode, CNetMsgMaker(pnode->GetSendVersion()).Make("dsee", vin, addr, vchSig, sigTime, pubkey, pubkey2, count, current, lastUpdated, protocolVersion, donationAddress, donationPercentage));
-                        }
-                    }
-                }
-            }
-
-            return;
-        }
-
-        static std::map<COutPoint, CPubKey> mapSeenDsee;
-        if (mapSeenDsee.count(vin.prevout) && mapSeenDsee[vin.prevout] == pubkey) {
-            LogPrint(BCLog::MASTERNODE, "%s::ProcessMessage() : dsee - already seen this vin %s\n", __func__, vin.prevout.ToString());
-            return;
-        }
-        mapSeenDsee.insert(std::make_pair(vin.prevout, pubkey));
-        // make sure the vout that was signed is related to the transaction that spawned the Masternode
-        //  - this is expensive, so it's only done once per Masternode
-        if (!masternodeSigner.IsVinAssociatedWithPubkey(vin, pubkey)) {
-            LogPrint(BCLog::MASTERNODE, "%s::ProcessMessage() : dsee - Got mismatched pubkey and vin\n", __func__);
-            Misbehaving(pfrom->GetId(), 100);
-            return;
-        }
-
-        LogPrint(BCLog::MASTERNODE, "%s::ProcessMessage() : dsee - Got NEW OLD Masternode entry %s\n", vin.prevout.hash.ToString());
-
-        {
-            COutPoint mnConfirms(vin.prevout.hash, vin.prevout.n);
-            if (GetUTXOConfirmations(mnConfirms) < MASTERNODE_MIN_CONFIRMATIONS) {
-                LogPrint(BCLog::MASTERNODE, "CMasternodeMan::ProcessMessage() : dsee - Input must have least %d confirmations\n", MASTERNODE_MIN_CONFIRMATIONS);
-                Misbehaving(pfrom->GetId(), 20);
-                return;
-            }
-
-            // verify that sig time is legit in past
-            // should be at least not earlier than block when 10000 MERGE tx got MASTERNODE_MIN_CONFIRMATIONS
-            uint256 hashBlock = uint256();
-            CTransactionRef tx2;
-            GetTransaction(vin.prevout.hash, tx2, Params().GetConsensus(), hashBlock);
-            BlockMap::iterator mi = ::BlockIndex().find(hashBlock);
-            if (mi != ::BlockIndex().end() && (*mi).second) {
-                CBlockIndex* pMNIndex = (*mi).second;
-                CBlockIndex* pConfIndex = ::ChainActive()[pMNIndex->nHeight + MASTERNODE_MIN_CONFIRMATIONS - 1];
-                if (pConfIndex->GetBlockTime() > sigTime) {
-                    LogPrint(BCLog::MASTERNODE, "%s::ProcessMessage() : mnb - Bad sigTime %d for Masternode %s (%i conf block is at %d)\n",
-                        __func__, sigTime, vin.prevout.hash.ToString(), MASTERNODE_MIN_CONFIRMATIONS, pConfIndex->GetBlockTime());
-                    return;
-                }
-            }
-
-            // add Masternode
-            CMasternode mn = CMasternode();
-            mn.addr = addr;
-            mn.vin = vin;
-            mn.pubKeyCollateralAddress = pubkey;
-            mn.sig = vchSig;
-            mn.sigTime = sigTime;
-            mn.pubKeyMasternode = pubkey2;
-            mn.protocolVersion = protocolVersion;
-            // fake ping
-            mn.lastPing = CMasternodePing(vin);
-            mn.Check(true);
-
-            if (protocolVersion < GETHEADERS_VERSION) {
-                LogPrint(BCLog::MASTERNODE, "dsee - Accepted OLD Masternode entry %i %i\n", count, current);
-                Add(mn);
-            }
-
-            if (mn.IsEnabled()) {
-                std::vector<CNode*> vNodesCopy = connman.CopyNodeVector(CConnman::FullyConnectedOnly);
-                for (CNode* pnode : vNodesCopy) {
-                    if (pnode->nVersion >= masternodePayments.GetMinMasternodePaymentsProto())
-                        connman.PushMessage(pnode, CNetMsgMaker(pnode->GetSendVersion()).Make("dsee", vin, addr, vchSig, sigTime, pubkey, pubkey2, count, current, lastUpdated, protocolVersion, donationAddress, donationPercentage));
-                }
-            }
-        }
+        return;
     }
 }
 
@@ -903,9 +734,9 @@ void CMasternodeMan::Remove(CTxIn vin)
 
 void CMasternodeMan::UpdateMasternodeList(CMasternodeBroadcast mnb, CConnman& connman)
 {
-    LOCK(cs);
     mapSeenMasternodePing.insert(std::make_pair(mnb.lastPing.GetHash(), mnb.lastPing));
     mapSeenMasternodeBroadcast.insert(std::make_pair(mnb.GetHash(), mnb));
+    masternodeSync.AddedMasternodeList(mnb.GetHash());
 
     LogPrint(BCLog::MASTERNODE, "CMasternodeMan::UpdateMasternodeList() -- masternode=%s\n", mnb.vin.prevout.ToString());
 

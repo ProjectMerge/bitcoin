@@ -121,6 +121,12 @@ public:
         MASTERNODE_POS_ERROR
     };
 
+    enum CollateralStatus {
+        COLLATERAL_OK,
+        COLLATERAL_UTXO_NOT_FOUND,
+        COLLATERAL_INVALID_AMOUNT
+    };
+
     CTxIn vin;
     CService addr;
     CPubKey pubKeyCollateralAddress;
@@ -218,6 +224,9 @@ public:
 
     bool UpdateFromNewBroadcast(CMasternodeBroadcast& mnb, CConnman& connman);
 
+    static CollateralStatus CheckCollateral(const COutPoint& outpoint);
+    static CollateralStatus CheckCollateral(const COutPoint& outpoint, int& nHeightRet);
+
     inline uint64_t SliceHash(uint256& hash, int slice)
     {
         uint64_t n = 0;
@@ -303,7 +312,6 @@ public:
     bool VerifySignature();
     void Relay(CConnman& connman) const;
     std::string GetOldStrMessage();
-    std::string GetNewStrMessage();
 
     ADD_SERIALIZE_METHODS;
 

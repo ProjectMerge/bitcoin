@@ -9,6 +9,7 @@
 #include <masternode/masternode-sync.h>
 #include <masternode/masternodeman.h>
 #include <masternode/netfulfilledman.h>
+#include <net_processing.h>
 #include <netmessagemaker.h>
 #include <util/moneystr.h>
 
@@ -344,7 +345,7 @@ void CMasternodePayments::FillBlockPayee(CMutableTransaction& txNew, int64_t nFe
 
 int CMasternodePayments::GetMinMasternodePaymentsProto()
 {
-    return PROTOCOL_VERSION;
+    return ActiveProtocol();
 }
 
 void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, CConnman& connman)

@@ -8,6 +8,7 @@
 #include <masternode/masternode-payments.h>
 #include <masternode/masternode-sync.h>
 #include <masternode/masternodeman.h>
+#include <net_processing.h>
 #include <shutdown.h>
 
 #include <boost/lexical_cast.hpp>
@@ -76,6 +77,7 @@ CMasternode::CMasternode()
     cacheInputAgeBlock = 0;
     unitTest = false;
     allowFreeTx = true;
+    nActiveState = MASTERNODE_ENABLED,
     protocolVersion = PROTOCOL_VERSION;
     nLastDsq = 0;
     nScanningErrorCount = 0;
@@ -98,6 +100,7 @@ CMasternode::CMasternode(const CMasternode& other)
     cacheInputAgeBlock = other.cacheInputAgeBlock;
     unitTest = other.unitTest;
     allowFreeTx = other.allowFreeTx;
+    nActiveState = MASTERNODE_ENABLED,
     protocolVersion = other.protocolVersion;
     nLastDsq = other.nLastDsq;
     nScanningErrorCount = other.nScanningErrorCount;
@@ -120,6 +123,7 @@ CMasternode::CMasternode(const CMasternodeBroadcast& mnb)
     cacheInputAgeBlock = 0;
     unitTest = false;
     allowFreeTx = true;
+    nActiveState = MASTERNODE_ENABLED,
     protocolVersion = mnb.protocolVersion;
     nLastDsq = mnb.nLastDsq;
     nScanningErrorCount = 0;
@@ -182,6 +186,29 @@ uint256 CMasternode::CalculateScore(int mod, int64_t nBlockHeight)
     return r;
 }
 
+CMasternode::CollateralStatus CMasternode::CheckCollateral(const COutPoint& outpoint)
+{
+    int nHeight;
+    return CheckCollateral(outpoint, nHeight);
+}
+
+CMasternode::CollateralStatus CMasternode::CheckCollateral(const COutPoint& outpoint, int& nHeightRet)
+{
+    AssertLockHeld(cs_main);
+
+    Coin coin;
+    if (!GetUTXOCoin(outpoint, coin)) {
+        return COLLATERAL_UTXO_NOT_FOUND;
+    }
+
+    if (coin.out.nValue != Params().GetConsensus().nCollateralAmount) {
+        return COLLATERAL_INVALID_AMOUNT;
+    }
+
+    nHeightRet = coin.nHeight;
+    return COLLATERAL_OK;
+}
+
 void CMasternode::Check(bool forceCheck)
 {
     if (ShutdownRequested())
@@ -208,6 +235,16 @@ void CMasternode::Check(bool forceCheck)
     if (lastPing.sigTime - sigTime < MASTERNODE_MIN_MNP_SECONDS) {
         activeState = MASTERNODE_PRE_ENABLED;
         return;
+    }
+
+    //test if the collateral is still good
+    if (!unitTest) {
+        CollateralStatus err = CheckCollateral(vin.prevout);
+        if (err == COLLATERAL_UTXO_NOT_FOUND) {
+            nActiveState = MASTERNODE_OUTPOINT_SPENT;
+            LogPrint(BCLog::MASTERNODE, "CMasternode::Check -- Failed to find Masternode UTXO, masternode=%s\n", vin.prevout.ToString());
+            return;
+        }
     }
 
     activeState = MASTERNODE_ENABLED; // OK
@@ -455,8 +492,6 @@ bool CMasternodeBroadcast::CheckDefaultPort(std::string strService, std::string&
 
 bool CMasternodeBroadcast::CheckAndUpdate(int& nDos, CConnman& connman)
 {
-    nDos = 0;
-
     // make sure signature isn't in the future (past is OK)
     if (sigTime > GetAdjustedTime() + 60 * 60) {
         LogPrint(BCLog::MASTERNODE, "mnb - Signature rejected, too far into the future %s\n", vin.prevout.hash.ToString());
@@ -464,8 +499,11 @@ bool CMasternodeBroadcast::CheckAndUpdate(int& nDos, CConnman& connman)
         return false;
     }
 
-    const int devVersionDifference = 1;
-    if (protocolVersion < masternodePayments.GetMinMasternodePaymentsProto() - devVersionDifference) {
+    // incorrect ping or its sigTime
+    if (lastPing == CMasternodePing() || !lastPing.CheckAndUpdate(nDos, connman, false, true))
+        return false;
+
+    if (protocolVersion < masternodePayments.GetMinMasternodePaymentsProto()) {
         LogPrint(BCLog::MASTERNODE, "mnb - ignoring outdated Masternode %s protocol version %d\n", vin.prevout.hash.ToString(), protocolVersion);
         return false;
     }
@@ -492,10 +530,6 @@ bool CMasternodeBroadcast::CheckAndUpdate(int& nDos, CConnman& connman)
         return false;
     }
 
-    // incorrect ping or its sigTime
-    if (lastPing == CMasternodePing() || !lastPing.CheckAndUpdate(nDos, connman, false, true))
-        return false;
-
     std::string strMessage;
     std::string errorMessage = "";
 
@@ -509,7 +543,6 @@ bool CMasternodeBroadcast::CheckAndUpdate(int& nDos, CConnman& connman)
             if (addr.ToString() != addr.ToString(false)) {
                 // maybe it's wrong format, try again with the old one
                 strMessage = addr.ToString() + boost::lexical_cast<std::string>(sigTime) + vchPubKey + vchPubKey2 + boost::lexical_cast<std::string>(protocolVersion);
-
                 if (!masternodeSigner.VerifyMessage(pubKeyCollateralAddress, sig, strMessage, errorMessage)) {
                     // didn't work either
                     LogPrintf("mnb - Got bad Masternode address signature, sanitized error: %s\n", SanitizeString(errorMessage));
@@ -596,7 +629,8 @@ bool CMasternodeBroadcast::CheckInputsAndAdd(int& nDoS, CConnman& connman)
     // verify that sig time is legit in past
     uint256 hashBlock = uint256();
     CTransactionRef tx2;
-    GetTransaction(vin.prevout.hash, tx2, Params().GetConsensus(), hashBlock);
+    if (!GetTransaction(vin.prevout.hash, tx2, Params().GetConsensus(), hashBlock))
+        return false;
     BlockMap::iterator mi = ::BlockIndex().find(hashBlock);
     if (mi != ::BlockIndex().end() && (*mi).second) {
         CBlockIndex* pMNIndex = (*mi).second;
@@ -626,12 +660,6 @@ bool CMasternodeBroadcast::CheckInputsAndAdd(int& nDoS, CConnman& connman)
 
 void CMasternodeBroadcast::Relay(CConnman& connman) const
 {
-    // Do not relay until fully synced
-    if (!masternodeSync.IsSynced()) {
-        LogPrint(BCLog::MASTERNODE, "CMasternodeBroadcast::Relay -- won't relay until fully synced\n");
-        return;
-    }
-
     CInv inv(MSG_MASTERNODE_ANNOUNCE, GetHash());
     connman.ForEachNode([&inv](CNode* pnode) {
         pnode->PushInventory(inv);
@@ -751,17 +779,21 @@ bool CMasternodePing::CheckAndUpdate(int& nDos, CConnman& connman, bool fRequire
         return false;
     }
 
+    // see if we have this Masternode
+    CMasternode* pmn = mnodeman.Find(vin);
+    const bool isMasternodeFound = (pmn != nullptr);
+    const bool isSignatureValid = isMasternodeFound && VerifySignature(pmn->pubKeyMasternode, nDos);
+
     if (fCheckSigTimeOnly) {
-        CMasternode* pmn = mnodeman.Find(vin);
-        if (pmn)
-            return VerifySignature(pmn->pubKeyMasternode, nDos);
+        if (isMasternodeFound && !isSignatureValid) {
+            nDos = 33;
+            return false;
+        }
         return true;
     }
 
     LogPrint(BCLog::MASTERNODE, "CMasternodePing::CheckAndUpdate - New Ping - %s - %s - %lli\n", GetHash().ToString(), blockHash.ToString(), sigTime);
 
-    // see if we have this Masternode
-    CMasternode* pmn = mnodeman.Find(vin);
     if (pmn && pmn->protocolVersion >= masternodePayments.GetMinMasternodePaymentsProto()) {
         if (fRequireEnabled && !pmn->IsEnabled())
             return false;
