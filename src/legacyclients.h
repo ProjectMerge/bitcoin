@@ -10,4 +10,6 @@ class CNode;
 const int newClientProtocol = 80000;
 
 bool IsLegacyNode(const CNode* pfrom);
+bool IsHeadersNode(const CNode* pfrom);
 bool IsLegacyMode();
+

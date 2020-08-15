@@ -815,6 +815,7 @@ public:
     bool m_legacyWhitelisted{false};
     bool fFeeler{false}; // If true this node is being used as a short lived feeler.
     bool fOneShot{false};
+    bool m_headers_sync{false}; // If true this node is capable of headers-first sync
     bool m_manual_connection{false};
     bool fClient{false}; // set by version message
     bool m_limited_node{false}; //after BIP159, set by version message

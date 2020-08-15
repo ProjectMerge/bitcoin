@@ -12,6 +12,7 @@
 #include <consensus/validation.h>
 #include <hash.h>
 #include <validation.h>
+#include <legacyclients.h>
 #include <merkleblock.h>
 #include <netmessagemaker.h>
 #include <netbase.h>
@@ -1692,9 +1693,8 @@ void static ProcessGetData(CNode* pfrom, const CChainParams& chainparams, CConnm
     } // release cs_main
 
     if (it != pfrom->vRecvGetData.end() && !pfrom->fPauseSend) {
-        const CInv &inv = *it;
+        const CInv &inv = *it++;
         if (inv.type == MSG_BLOCK || inv.type == MSG_FILTERED_BLOCK || inv.type == MSG_CMPCT_BLOCK || inv.type == MSG_WITNESS_BLOCK) {
-            it++;
             ProcessGetBlockData(pfrom, chainparams, inv, connman);
         }
     }
@@ -2063,6 +2063,9 @@ bool ProcessMessage(CNode* pfrom, const std::string& msg_type, CDataStream& vRec
             pfrom->fDisconnect = true;
             return true;
         }
+        // Flag if this node can handle headers-sync
+        if (IsHeadersNode(pfrom))
+            pfrom->m_headers_sync = true;
 
         if (pfrom->fInbound && addrMe.IsRoutable())
         {
@@ -2317,6 +2320,7 @@ bool ProcessMessage(CNode* pfrom, const std::string& msg_type, CDataStream& vRec
         std::vector<CInv> vToFetch;
         uint32_t nFetchFlags = GetFetchFlags(pfrom);
         const auto current_time = GetTime<std::chrono::microseconds>();
+        uint256* best_block{nullptr};
 
         for (CInv &inv : vInv)
         {
@@ -2333,10 +2337,13 @@ bool ProcessMessage(CNode* pfrom, const std::string& msg_type, CDataStream& vRec
             if (inv.type == MSG_BLOCK) {
                 UpdateBlockAvailability(pfrom->GetId(), inv.hash);
                 if (!fAlreadyHave && !fImporting && !fReindex && !mapBlocksInFlight.count(inv.hash)) {
-                    // Add this to the list of blocks to request
-                    vToFetch.push_back(inv);
-                    connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::GETBLOCKS, ::ChainActive().GetLocator(pindexBestHeader), inv.hash));
-                    LogPrint(BCLog::NET, "getblocks (%d) %s to peer=%d\n", pindexBestHeader->nHeight, inv.hash.ToString(), pfrom->GetId());
+                    best_block = &inv.hash;
+                    //! getblocks init
+                    if (!pfrom->m_headers_sync) {
+                        vToFetch.push_back(inv);
+                        connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::GETBLOCKS, ::ChainActive().GetLocator(pindexBestHeader), inv.hash));
+                        LogPrint(BCLog::NET, "getblocks (%d) %s to peer=%d\n", pindexBestHeader->nHeight, inv.hash.ToString(), pfrom->GetId());
+                    }
                 }
             } else {
                 pfrom->AddInventoryKnown(inv);
@@ -2346,8 +2353,17 @@ bool ProcessMessage(CNode* pfrom, const std::string& msg_type, CDataStream& vRec
             }
         }
 
-        if (vToFetch.size() != 1)
-            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::GETDATA, vToFetch));
+        if (!pfrom->m_headers_sync) {
+            //! getblocks cont'd
+            if (vToFetch.size() != 1)
+                connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::GETDATA, vToFetch));
+        } else {
+            //! getheaders init
+            if (best_block != nullptr) {
+                connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::GETHEADERS, ::ChainActive().GetLocator(pindexBestHeader), *best_block));
+                LogPrint(BCLog::NET, "getheaders (%d) %s to peer=%d\n", pindexBestHeader->nHeight, best_block->ToString(), pfrom->GetId());
+            }
+        }
 
         return true;
     }

@@ -18,9 +18,17 @@ bool IsLegacyNode(const CNode* pfrom)
      return false;
 }
 
+bool IsHeadersNode(const CNode* pfrom)
+{
+     if (pfrom->cleanSubVer == "Merge:0.20.0")
+         return true;
+     return false;
+}
+
 bool IsLegacyMode()
 {
      if (sporkManager.IsSporkActive(Spork::SPORK_16_CLIENT_COMPAT_MODE))
          return false;
      return true;
 }
+
