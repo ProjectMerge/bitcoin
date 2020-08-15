@@ -594,7 +594,7 @@ merged_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 merged_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
 
 if TARGET_WINDOWS
-merged_SOURCES += merged-res.rc
+merged_SOURCES += bitcoind-res.rc
 endif
 
 merged_LDADD = \
@@ -660,7 +660,7 @@ merge_wallet_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 merge_wallet_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
 
 if TARGET_WINDOWS
-merge_wallet_SOURCES += merge-wallet-res.rc
+merge_wallet_SOURCES += bitcoin-wallet-res.rc
 endif
 
 merge_wallet_LDADD = \
@@ -722,12 +722,12 @@ CLEANFILES += obj/build.h
 EXTRA_DIST = $(CTAES_DIST)
 
 
-config/merge-config.h: config/stamp-h1
+config/bitcoin-config.h: config/stamp-h1
 	@$(MAKE) -C $(top_builddir) $(subdir)/$(@)
-config/stamp-h1: $(top_srcdir)/$(subdir)/config/merge-config.h.in $(top_builddir)/config.status
+config/stamp-h1: $(top_srcdir)/$(subdir)/config/bitcoin-config.h.in $(top_builddir)/config.status
 	$(AM_V_at)$(MAKE) -C $(top_builddir) $(subdir)/$(@)
-$(top_srcdir)/$(subdir)/config/merge-config.h.in:  $(am__configure_deps)
-	$(AM_V_at)$(MAKE) -C $(top_srcdir) $(subdir)/config/merge-config.h.in
+$(top_srcdir)/$(subdir)/config/bitcoin-config.h.in:  $(am__configure_deps)
+	$(AM_V_at)$(MAKE) -C $(top_srcdir) $(subdir)/config/bitcoin-config.h.in
 
 clean-local:
 	-$(MAKE) -C secp256k1 clean
