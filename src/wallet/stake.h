@@ -31,7 +31,7 @@ public:
 
     bool MintableCoins();
     bool SelectStakeCoins(std::set<std::pair<const CWalletTx*, unsigned int> >& setCoins, CAmount nTargetAmount) const;
-    bool CreateCoinStake(const CWallet& wallet, unsigned int nBits, CMutableTransaction& txNew, unsigned int& nTxNewTime);
+    bool CreateCoinStake(unsigned int nBits, CMutableTransaction& txNew, unsigned int& nTxNewTime);
     void BestStakeSeen(uint256& hash);
 };
 

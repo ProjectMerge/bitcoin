@@ -179,7 +179,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
         bool fStakeFound = false;
         if (nSearchTime >= nLastCoinStakeSearchTime) {
             unsigned int nTxNewTime = 0;
-            if (stake.CreateCoinStake(*m_wallet, pblock->nBits, coinstakeTx, nTxNewTime)) {
+            if (stake.CreateCoinStake(pblock->nBits, coinstakeTx, nTxNewTime)) {
                 pblock->nTime = nTxNewTime;
                 coinbaseTx.vout[0].SetEmpty();
                 pblock->vtx[1] = MakeTransactionRef(std::move(coinstakeTx));

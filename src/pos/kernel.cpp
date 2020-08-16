@@ -307,10 +307,9 @@ bool CheckStakeKernelHash(unsigned int nBits, const CBlock blockFrom, const CTra
 
     bool fSuccess = false;
     unsigned int nTryTime = 0;
-    unsigned int i;
     int nHeightStart = ::ChainActive().Height();
 
-    for (i = 0; i < (nHashDrift); i++) {
+    for (unsigned int i = 0; i < nHashDrift; i++) {
         if (::ChainActive().Height() != nHeightStart)
             break;
 
