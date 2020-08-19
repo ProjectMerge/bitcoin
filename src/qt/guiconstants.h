@@ -8,7 +8,7 @@
 #include <cstdint>
 
 /* Milliseconds between model updates */
-static const int MODEL_UPDATE_DELAY = 250;
+static const int MODEL_UPDATE_DELAY = 100;
 
 /* AskPassphraseDialog -- Maximum passphrase length */
 static const int MAX_PASSPHRASE_SIZE = 1024;
@@ -43,7 +43,7 @@ static const int TOOLTIP_WRAP_THRESHOLD = 80;
 #define SPINNER_FRAMES 36
 
 #define QAPP_ORG_NAME "Merge"
-#define QAPP_ORG_DOMAIN "merge.org"
+#define QAPP_ORG_DOMAIN "projectmerge.org"
 #define QAPP_APP_NAME_DEFAULT "Merge-Qt"
 #define QAPP_APP_NAME_TESTNET "Merge-Qt-testnet"
 #define QAPP_APP_NAME_REGTEST "Merge-Qt-regtest"

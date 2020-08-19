@@ -69,16 +69,6 @@
          <property name="verticalSpacing">
           <number>10</number>
          </property>
-         <item row="4" column="0" colspan="2">
-          <widget class="QLabel" name="pruneWarning">
-           <property name="text">
-            <string>Reverting this setting requires re-downloading the entire blockchain.</string>
-           </property>
-           <property name="textFormat">
-            <enum>Qt::PlainText</enum>
-           </property>
-          </widget>
-         </item>
          <item row="1" column="0">
           <widget class="QLabel" name="threadsScriptVerifLabel">
            <property name="text">
@@ -209,61 +199,7 @@
            </item>
           </layout>
          </item>
-         <item row="3" column="0">
-          <widget class="QCheckBox" name="prune">
-           <property name="toolTip">
-            <string>Disables some advanced features but all blocks will still be fully validated. Reverting this setting requires re-downloading the entire blockchain. Actual disk usage may be somewhat higher.</string>
-           </property>
-           <property name="text">
-            <string>Prune &amp;block storage to</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="1">
-          <layout class="QHBoxLayout" name="horizontalLayout_Main_Prune">
-           <item>
-            <widget class="QSpinBox" name="pruneSize"/>
-           </item>
-           <item>
-            <widget class="QLabel" name="pruneSizeUnitLabel">
-             <property name="text">
-              <string>GB</string>
-             </property>
-             <property name="textFormat">
-              <enum>Qt::PlainText</enum>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <spacer name="horizontalSpacer_Main_Prune">
-             <property name="orientation">
-              <enum>Qt::Horizontal</enum>
-             </property>
-             <property name="sizeHint" stdset="0">
-              <size>
-               <width>40</width>
-               <height>20</height>
-              </size>
-             </property>
-            </spacer>
-           </item>
-          </layout>
-         </item>
         </layout>
-       </item>
-       <item>
-        <widget class="QCheckBox" name="logEvents">
-         <property name="text">
-          <string>Enable  log &amp;events</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QCheckBox" name="superStaking">
-         <property name="text">
-          <string>Enable s&amp;uper staking</string>
-         </property>
-        </widget>
        </item>
        <item>
         <spacer name="verticalSpacer_Main">
@@ -330,23 +266,9 @@
            </widget>
           </item>
           <item>
-           <widget class="QCheckBox" name="zeroBalanceAddressToken">
-            <property name="text">
-             <string>Enable &amp;zero balance for receiver token address</string>
-            </property>
-           </widget>
-          </item>
-          <item>
            <widget class="QCheckBox" name="useChangeAddress">
             <property name="text">
              <string>Use change &amp;address</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QCheckBox" name="checkForUpdates">
-            <property name="text">
-             <string>Check for &amp;updates</string>
             </property>
            </widget>
           </item>

@@ -1096,6 +1096,11 @@ void BitcoinGUI::setNumBlocks(int count, const QDateTime& blockDate, double nVer
         tooltip += tr("Last received block was generated %1 ago.").arg(timeBehindText);
         tooltip += QString("<br>");
         tooltip += tr("Transactions after this will not yet be visible.");
+    } else {
+        setAdditionalDataSyncProgress(100);
+        progressBarLabel->setVisible(false);
+        progressBar->setVisible(false);
+        return;
     }
 
     // Don't word-wrap this (fixed-width) tooltip
@@ -1138,6 +1143,7 @@ void BitcoinGUI::setAdditionalDataSyncProgress(double nSyncProgress)
             walletFrame->showOutOfSyncWarning(false);
 #endif // ENABLE_WALLET
 
+        progressBar->setFormat(tr("Synchronizing additional data: %p%"));
         progressBar->setMaximum(1000000000);
         progressBar->setValue(nSyncProgress * 1000000000.0 + 0.5);
     }
@@ -1612,4 +1618,9 @@ void UnitDisplayStatusBarControl::onMenuSelection(QAction* action)
     {
         optionsModel->setDisplayUnit(action->data());
     }
+}
+
+WalletFrame *BitcoinGUI::getWalletFrame() const
+{
+    return walletFrame;
 }
