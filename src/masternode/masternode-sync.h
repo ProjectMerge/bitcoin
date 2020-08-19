@@ -8,6 +8,7 @@
 #define MASTERNODE_SYNC_H
 
 #include <atomic>
+#include <net.h>
 
 #define MASTERNODE_SYNC_INITIAL 0
 #define MASTERNODE_SYNC_SPORKS 1

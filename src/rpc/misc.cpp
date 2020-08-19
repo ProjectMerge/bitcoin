@@ -17,6 +17,9 @@
 #include <util/strencodings.h>
 #include <util/system.h>
 
+#include <masternode/masternode-sync.h>
+#include <masternode/spork.h>
+
 #include <stdint.h>
 #include <tuple>
 #ifdef HAVE_MALLOC_INFO
@@ -24,6 +27,84 @@
 #endif
 
 #include <univalue.h>
+
+/*
+    Used for updating/reading spork settings on the network
+*/
+static UniValue spork(const JSONRPCRequest& request)
+{
+    if (request.params.size() == 1) {
+        // basic mode, show info
+        std:: string strCommand = request.params[0].get_str();
+        if (strCommand == "show") {
+            UniValue ret(UniValue::VOBJ);
+            for (int nSporkID = Spork::SPORK_START; nSporkID <= Spork::SPORK_END; nSporkID++) {
+                if (sporkManager.GetSporkValue(nSporkID) == -1) continue;
+                ret.pushKV(sporkManager.GetSporkNameByID(nSporkID), sporkManager.GetSporkValue(nSporkID));
+            }
+            return ret;
+        } else if(strCommand == "active"){
+            UniValue ret(UniValue::VOBJ);
+            for (int nSporkID = Spork::SPORK_START; nSporkID <= Spork::SPORK_END; nSporkID++) {
+                if (sporkManager.GetSporkValue(nSporkID) == -1) continue;
+                ret.pushKV(sporkManager.GetSporkNameByID(nSporkID), sporkManager.IsSporkActive(nSporkID));
+            }
+            return ret;
+        }
+    }
+
+    if (request.fHelp || request.params.size() != 2) {
+        // default help, for basic mode
+        throw std::runtime_error(
+            "spork \"command\"\n"
+            "\nShows information about current state of sporks\n"
+            "\nArguments:\n"
+            "1. \"command\"                     (string, required) 'show' to show all current spork values, 'active' to show which sporks are active\n"
+            "\nResult:\n"
+            "For 'show':\n"
+            "{\n"
+            "  \"SPORK_NAME\" : spork_value,    (number) The value of the specific spork with the name SPORK_NAME\n"
+            "  ...\n"
+            "}\n"
+            "For 'active':\n"
+            "{\n"
+            "  \"SPORK_NAME\" : true|false,     (boolean) 'true' for time-based sporks if spork is active and 'false' otherwise\n"
+            "  ...\n"
+            "}\n"
+            "\nExamples:\n"
+            + HelpExampleCli("spork", "show")
+            + HelpExampleRpc("spork", "\"show\""));
+    } else {
+        int nSporkID = sporkManager.GetSporkIDByName(request.params[0].get_str());
+
+        if (nSporkID == -1)
+            return false;
+
+        if (!g_rpc_node->connman)
+            throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+
+        // SPORK VALUE
+        int64_t nValue = request.params[1].get_int64();
+
+        //broadcast new spork
+        if(sporkManager.UpdateSpork(nSporkID, nValue, *g_rpc_node->connman)){
+            return "success";
+        } else {
+            throw std::runtime_error(
+                "spork \"name\" value\n"
+                "\nUpdate the value of the specific spork. Requires \"-sporkkey\" to be set to sign the message.\n"
+                "\nArguments:\n"
+                "1. \"name\"              (string, required) The name of the spork to update\n"
+                "2. value               (number, required) The new desired value of the spork\n"
+                "\nResult:\n"
+                "  result               (string) \"success\" if spork value was updated or this help otherwise\n"
+                "\nExamples:\n"
+                + HelpExampleCli("spork", "SPORK_2_INSTANTSEND_ENABLED 4070908800")
+                + HelpExampleRpc("spork", "\"SPORK_2_INSTANTSEND_ENABLED\", 4070908800"));
+        }
+    }
+    return false;
+}
 
 static UniValue validateaddress(const JSONRPCRequest& request)
 {
@@ -603,6 +684,8 @@ static const CRPCCommand commands[] =
     { "util",               "getdescriptorinfo",      &getdescriptorinfo,      {"descriptor"} },
     { "util",               "verifymessage",          &verifymessage,          {"address","signature","message"} },
     { "util",               "signmessagewithprivkey", &signmessagewithprivkey, {"privkey","message"} },
+
+    { "merge",              "spork",                  &spork,                  {"mode"} },
 
     /* Not shown in help */
     { "hidden",             "setmocktime",            &setmocktime,            {"timestamp"}},
