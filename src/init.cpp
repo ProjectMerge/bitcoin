@@ -1847,8 +1847,6 @@ bool AppInitMain(NodeContext& node)
 
     // ********************************************************* Step 12: start node
 
-    threadGroup.create_thread(std::bind(ThreadMasternodePool));
-
     int chain_active_height;
 
     //// debug print
@@ -1924,6 +1922,8 @@ bool AppInitMain(NodeContext& node)
     }
 
     // ********************************************************* Step 13: finished
+
+    node.scheduler->scheduleEvery(boost::bind(&ThreadMasternodePool), std::chrono::seconds{1});
 
     SetRPCWarmupFinished();
     uiInterface.InitMessage(_("Done loading").translated);

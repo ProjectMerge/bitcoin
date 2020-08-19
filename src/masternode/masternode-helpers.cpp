@@ -80,39 +80,27 @@ bool CMasternodeSigner::VerifyMessage(CPubKey pubkey, std::vector<unsigned char>
 
 void ThreadMasternodePool()
 {
-    unsigned int c = 0;
+    if (ShutdownRequested()) return;
+    if (::ChainstateActive().IsInitialBlockDownload()) return;
 
-    //! spin until chain synced
-    while (!masternodeSync.IsBlockchainSynced() && !ShutdownRequested()) {
-        MilliSleep(1000);
-    }
+    static unsigned int c = 0;
 
-    if (ShutdownRequested())
-        return;
+    // try to sync from all available nodes, one step at a time
+    masternodeSync.Process(*g_rpc_node->connman);
 
-    //! chain is done
-    while (true) {
+    if (masternodeSync.IsBlockchainSynced())
+    {
+        c++;
 
-        boost::this_thread::interruption_point();
+        // check if we should activate or ping every few minutes,
+        // start right after sync is considered to be done
+        if (c % MASTERNODE_PING_SECONDS == 1)
+            activeMasternode.ManageStatus(*g_rpc_node->connman);
 
-        MilliSleep(1000);
-
-        // try to sync from all available nodes, one step at a time
-        masternodeSync.Process(*g_rpc_node->connman);
-
-        if (masternodeSync.IsBlockchainSynced()) {
-            c++;
-
-            // check if we should activate or ping every few minutes,
-            // start right after sync is considered to be done
-            if (c % MASTERNODE_PING_SECONDS == 1)
-                activeMasternode.ManageStatus(*g_rpc_node->connman);
-
-            if (c % 60 == 0) {
-                mnodeman.CheckAndRemove();
-                mnodeman.ProcessMasternodeConnections(*g_rpc_node->connman);
-                masternodePayments.CleanPaymentList();
-            }
+        if (c % 60 == 0) {
+            mnodeman.CheckAndRemove();
+            mnodeman.ProcessMasternodeConnections(*g_rpc_node->connman);
+            masternodePayments.CleanPaymentList();
         }
     }
 }
