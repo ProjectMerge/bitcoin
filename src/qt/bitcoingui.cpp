@@ -72,6 +72,7 @@
 #include <QDockWidget>
 #include <QSizeGrip>
 
+bool haveShownSyncWarning{false};
 
 const std::string BitcoinGUI::DEFAULT_UIPLATFORM =
 #if defined(Q_OS_MAC)
@@ -1083,8 +1084,9 @@ void BitcoinGUI::setNumBlocks(int count, const QDateTime& blockDate, double nVer
         prevBlocks = count;
 
 #ifdef ENABLE_WALLET
-        if(walletFrame)
+        if(walletFrame && !haveShownSyncWarning)
         {
+            haveShownSyncWarning = true;
             walletFrame->showOutOfSyncWarning(true);
             modalOverlay->showHide();
         }
