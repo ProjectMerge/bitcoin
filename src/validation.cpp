@@ -2135,17 +2135,15 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "ConnectBlock(): PoW period ended",
                              "pow-ended");
 
-    nBlocksTotal++;
-
     uint256 hashProofOfStake = uint256();
     if (block.IsProofOfStake()) {
-        if (!CheckProofOfStake(block, hashProofOfStake)) {
-            LogPrintf("block failed stake kernel check\n");
+        if (!CheckProofOfStake(block, hashProofOfStake))
             return false;
-        } else {
-            LogPrintf("hashProof %s\n", hashProofOfStake.ToString().c_str());
-        }
+        else
+            LogPrint(BCLog::POS, "hashProof %s\n", hashProofOfStake.ToString().c_str());
     }
+
+    nBlocksTotal++;
 
     bool fScriptChecks = true;
     if (!hashAssumeValid.IsNull()) {
