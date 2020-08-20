@@ -77,13 +77,13 @@ public:
     {
         Other,
         Generated,
+        StakeMint,
         SendToAddress,
         SendToOther,
         RecvWithAddress,
         RecvFromOther,
         SendToSelf,
-        ContractRecv,
-        ContractSend
+        MNReward
     };
 
     /** Number of confirmation recommended for accepting a transaction */

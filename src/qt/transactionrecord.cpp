@@ -48,7 +48,43 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const interface
     uint256 hash = wtx.tx->GetHash();
     std::map<std::string, std::string> mapValue = wtx.value_map;
 
-    if (nNet > 0 || wtx.is_coinbase || wtx.is_coinstake)
+    auto m_wallet = GetMainWallet();
+
+    if(wtx.tx->IsCoinStake())
+    {
+        TransactionRecord sub(hash, nTime);
+        CTxDestination address;
+        if (!ExtractDestination(wtx.tx->vout[1].scriptPubKey, address))
+            return parts;
+
+        if (!wtx.txout_is_mine[1])
+        {
+                for (unsigned int i = 1; i < wtx.tx->vout.size(); i++) {
+                    CTxDestination outAddress;
+                    if (ExtractDestination(wtx.tx->vout[i].scriptPubKey, outAddress)) {
+                        isminetype mine = m_wallet->IsMine(wtx.tx->vout[i]);
+                        if (mine) {
+                            sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
+                            sub.type = TransactionRecord::MNReward;
+                            sub.address = EncodeDestination(outAddress);
+                            sub.credit = wtx.tx->vout[i].nValue;
+                        }
+                    }
+                }
+        }
+        else
+        {
+            //stake reward
+            isminetype mine = m_wallet->IsMine(wtx.tx->vout[1]);
+            sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
+            sub.address = EncodeDestination(address);
+            sub.credit = wtx.tx->GetValueOut() - nDebit;
+            sub.type = TransactionRecord::StakeMint;
+
+        }
+        parts.append(sub);
+    }
+    else if (nNet > 0 || wtx.is_coinbase)
     {
         //
         // Credit
