@@ -5,8 +5,10 @@
 
 #include <httpserver.h>
 #include <key_io.h>
+#include <miner.h>
 #include <node/context.h>
 #include <outputtype.h>
+#include <pos/kernel.h>
 #include <rpc/blockchain.h>
 #include <rpc/server.h>
 #include <rpc/util.h>
@@ -16,6 +18,9 @@
 #include <util/message.h> // For MessageSign(), MessageVerify()
 #include <util/strencodings.h>
 #include <util/system.h>
+#include <wallet/coincontrol.h>
+#include <wallet/stake.h>
+#include <wallet/wallet.h>
 
 #include <masternode/masternode-sync.h>
 #include <masternode/spork.h>
@@ -650,6 +655,48 @@ UniValue logging(const JSONRPCRequest& request)
     return result;
 }
 
+UniValue getstakingstatus(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 0)
+        throw std::runtime_error(
+            "getstakingstatus\n"
+            "Returns an object containing various staking information.\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"validtime\": true|false,          (boolean) if the chain tip is within staking phases\n"
+            "  \"haveconnections\": true|false,    (boolean) if network connections are present\n"
+            "  \"walletunlocked\": true|false,     (boolean) if the wallet is unlocked\n"
+            "  \"mintablecoins\": true|false,      (boolean) if the wallet has mintable coins\n"
+            "  \"enoughcoins\": true|false,        (boolean) if available coins are greater than reserve balance\n"
+            "  \"mnsync\": true|false,             (boolean) if masternode data is synced\n"
+            "  \"staking status\": true|false,     (boolean) if the wallet is staking or not\n"
+            "}\n"
+            "\nExamples:\n" +
+            HelpExampleCli("getstakingstatus", "") + HelpExampleRpc("getstakingstatus", ""));
+
+    CCoinControl coin_control;
+    auto m_wallet = GetMainWallet();
+
+    UniValue obj(UniValue::VOBJ);
+    obj.pushKV("validtime", ::ChainActive().Height() >= Params().GetConsensus().nLastPoWBlock);
+    obj.pushKV("haveconnections", g_rpc_node->connman->GetNodeCount(CConnman::CONNECTIONS_ALL) > 0);
+    if (m_wallet) {
+        obj.pushKV("walletunlocked", !m_wallet->IsLocked());
+        obj.pushKV("mintablecoins", stake.MintableCoins());
+        obj.pushKV("enoughcoins", m_wallet->GetBalance(0, coin_control.m_avoid_address_reuse).m_mine_trusted > 0);
+    }
+    obj.pushKV("mnsync", masternodeSync.IsSynced());
+
+    bool nStaking = false;
+
+    if (nLastCoinStakeSearchInterval > 0)
+        nStaking = true;
+
+    obj.pushKV("staking status", nStaking);
+
+    return obj;
+}
+
 static UniValue echo(const JSONRPCRequest& request)
 {
     if (request.fHelp)
@@ -684,6 +731,7 @@ static const CRPCCommand commands[] =
     { "util",               "getdescriptorinfo",      &getdescriptorinfo,      {"descriptor"} },
     { "util",               "verifymessage",          &verifymessage,          {"address","signature","message"} },
     { "util",               "signmessagewithprivkey", &signmessagewithprivkey, {"privkey","message"} },
+    { "util",               "getstakingstatus",       &getstakingstatus,       {} },
 
     { "merge",              "spork",                  &spork,                  {"mode"} },
 
