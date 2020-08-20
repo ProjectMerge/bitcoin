@@ -136,8 +136,8 @@ public:
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,50);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,53);
         base58Prefixes[SECRET_KEY] =     std::vector<unsigned char>(1,178);
-        base58Prefixes[EXT_PUBLIC_KEY] = {0x02, 0x2D, 0x25, 0x33};
-        base58Prefixes[EXT_SECRET_KEY] = {0x02, 0x21, 0x31, 0x2B};
+        base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x88, 0xB2, 0x1E};
+        base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x88, 0xAD, 0xE4};
 
         bech32_hrp = "merge";
 
@@ -148,12 +148,28 @@ public:
         m_is_test_chain = false;
         m_is_mockable_chain = false;
         nFulfilledRequestExpireTime = 60*60;
-        strSporkKey = "04e4947934c23ec1c2dc01daf414a107916d2f1db14cd198f87541b98512f7e62f696ddc2d4ff2674663ddbd1de6f64deea885b45c4280df8db18f459389174839";
+        strSporkKey = "04b86d4321e8aa926be7d366057ba41dbad32fdc7e5efa78d284ffc9d45ea63c796d58dc2f9050d9c83006bc7bce31d79f7bc84a59a4472718e245dccfe763b435";
 
-        checkpointData = {{
-        }};
+        checkpointData = {
+            {
+                { 50000, uint256S("000000001457d8e40898a1f24f3a451b0f25888357d3d7d233581637e1816589")},
+                { 75000, uint256S("b3fe7bd44404e8b49c703f33c3e65d08140ebdca7aa58fa1f1d21b28e87ad5a6")},
+                {150000, uint256S("d44d1d66c8d281bc24b66031dc40b641eab3ad66c01f9d70d22b94f53a8a8d09")},
+                {225000, uint256S("6aeb866bc0d9ddeac33d26471e633eaf3aa7be5a92bf7b2d00106512ee13ae8b")},
+                {300000, uint256S("b2e6e393e1f1deebd23d0ff64ef3eefaf155f088cd1b4b4a3716ebd8669977b8")},
+                {375000, uint256S("5107c0b5203e551f34b22a416a0ef7be644b20f39d1f8c4756c49ab24641cca1")},
+                {450000, uint256S("3b3c1700e85f5399c209d19de0186714b6bcea402cadf744dacbaffb14d669fd")},
+                {525000, uint256S("9c4941f9151d17e430d13396ce67af6de97246407c5f1b622eae2c63c17e7e62")},
+                {600000, uint256S("9cbe2f3f622bebb746b6ebfbc8848a837f5d18e735a79289f38da2665601eab7")},
+                {675000, uint256S("c9fa31899943920d85092b7c6890693df3e849a3340668947b8557d93112d473")},
+                {700000, uint256S("b4dfcfd022bc238867cf7bfcbe60e92cddc569fe78159d8cb5df065c86024b2e")},
+            }
+        };
 
         chainTxData = ChainTxData{
+            /* nTime    */ 1590834293,
+            /* nTxCount */ 1461516,
+            /* dTxRate  */ 0.0323599884537105,
         };
     }
 };
@@ -224,8 +240,8 @@ public:
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,80);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,83);
         base58Prefixes[SECRET_KEY] =     std::vector<unsigned char>(1,208);
-        base58Prefixes[EXT_PUBLIC_KEY] = {0x02, 0x2D, 0x25, 0x33};
-        base58Prefixes[EXT_SECRET_KEY] = {0x02, 0x21, 0x31, 0x2B};
+        base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x35, 0x87, 0xCF};
+        base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x35, 0x83, 0x94};
 
         bech32_hrp = "tb";
 
