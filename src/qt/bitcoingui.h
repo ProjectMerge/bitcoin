@@ -16,6 +16,7 @@
 #include <QLabel>
 #include <QMainWindow>
 #include <QMap>
+#include <QMenu>
 #include <QPoint>
 #include <QSystemTrayIcon>
 
@@ -41,7 +42,6 @@ class ModalOverlay;
 class MasternodeList;
 class TitleBar;
 class NavigationBar;
-class QtumVersionChecker;
 
 namespace interfaces {
 class Handler;
@@ -103,8 +103,6 @@ public:
 
     /** Disconnect core signals from GUI client */
     void unsubscribeFromCoreSignals();
-
-    WalletFrame *getWalletFrame() const;
 
 protected:
     void changeEvent(QEvent *e);
@@ -182,7 +180,6 @@ private:
     HelpMessageDialog* helpMessageDialog = nullptr;
     ModalOverlay* modalOverlay = nullptr;
     ModalOverlay *modalBackupOverlay = nullptr;
-    QtumVersionChecker *mergeVersionChecker = nullptr;
 
 #ifdef Q_OS_MAC
     CAppNapInhibitor* m_app_nap_inhibitor = nullptr;

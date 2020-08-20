@@ -148,6 +148,8 @@ public:
 
     static bool isWalletEnabled();
 
+    bool canGetAddresses() const;
+
     interfaces::Node& node() const { return m_node; }
     interfaces::Wallet& wallet() const { return *m_wallet; }
 
