@@ -5,6 +5,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <chainparams.h>
+#include <fs.h>
 #include <masternode/masternodeconfig.h>
 #include <util/strencodings.h>
 #include <util/system.h>
@@ -34,11 +35,11 @@ void CMasternodeConfig::remove(std::string alias)
 bool CMasternodeConfig::read(std::string& strErr)
 {
     int linenumber = 1;
-    boost::filesystem::path pathMasternodeConfigFile = GetMasternodeConfigFile();
-    boost::filesystem::ifstream streamConfig(pathMasternodeConfigFile);
+    fs::path pathMasternodeConfigFile = GetMasternodeConfigFile();
+    fs::ifstream streamConfig(pathMasternodeConfigFile);
 
     if (!streamConfig.good()) {
-        FILE* configFile = fopen(pathMasternodeConfigFile.string().c_str(), "a");
+        FILE* configFile = fsbridge::fopen(pathMasternodeConfigFile.string().c_str(), "a");
         if (configFile != nullptr) {
             std::string strHeader = "# Masternode config file\n"
                                     "# Format: alias IP:port masternodeprivkey collateral_output_txid collateral_output_index\n"
