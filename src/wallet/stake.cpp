@@ -15,6 +15,7 @@
 
 CStake stake;
 
+typedef std::vector<unsigned char> valtype;
 bool CStake::SelectStakeCoins(std::set<std::pair<const CWalletTx*, unsigned int>>& setCoins, CAmount nTargetAmount) const
 {
     auto m_wallet = GetMainWallet();
@@ -25,7 +26,14 @@ bool CStake::SelectStakeCoins(std::set<std::pair<const CWalletTx*, unsigned int>
     m_wallet->AvailableCoins(*locked_chain, vCoins, true);
     CAmount nAmountSelected = 0;
 
-    for (const COutput& out : vCoins) {
+    for (const COutput& out : vCoins)
+    {
+        //until we get more confident with our key handling, only choose TX_PUBKEY
+        std::vector<valtype> vSolutions;
+        CScript scriptPubKeyKernel = out.tx->tx->vout[out.i].scriptPubKey;
+        if (Solver(scriptPubKeyKernel, vSolutions) != txnouttype::TX_PUBKEY)
+            continue;
+
         //make sure not to outrun target amount
         if (nAmountSelected + out.tx->tx->vout[out.i].nValue > nTargetAmount)
             continue;
