@@ -50,7 +50,14 @@ public:
         QAbstractItemDelegate(parent), unit(BitcoinUnits::BTC),
         platformStyle(_platformStyle)
     {
-
+        background_color_selected = GetStringStyleValue("txviewdelegate/background-color-selected", "#009ee5");
+        background_color = GetStringStyleValue("txviewdelegate/background-color", "#393939");
+        alternate_background_color = GetStringStyleValue("txviewdelegate/alternate-background-color", "#2e2e2e");
+        foreground_color = GetStringStyleValue("txviewdelegate/foreground-color", "#dedede");
+        foreground_color_selected = GetStringStyleValue("txviewdelegate/foreground-color-selected", "#ffffff");
+        amount_color = GetStringStyleValue("txviewdelegate/amount-color", "#ffffff");
+        color_unconfirmed = GetColorStyleValue("guiconstants/color-unconfirmed", COLOR_UNCONFIRMED);
+        color_negative = GetColorStyleValue("guiconstants/color-negative", COLOR_NEGATIVE);
     }
 
     inline void paint(QPainter *painter, const QStyleOptionViewItem &option,

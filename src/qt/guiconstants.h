@@ -7,6 +7,8 @@
 
 #include <cstdint>
 
+#include <QString>
+
 /* Milliseconds between model updates */
 static const int MODEL_UPDATE_DELAY = 100;
 
@@ -50,5 +52,11 @@ static const int TOOLTIP_WRAP_THRESHOLD = 80;
 
 /* One gigabyte (GB) in bytes */
 static constexpr uint64_t GB_BYTES{1000000000};
+
+/* Mainnet merge explorer uri */
+static const QString MERGE_INFO_MAINNET = "<a href='https://explorer.projectmerge.org/%1/%2'>%2</a>";
+
+/* Testnet merge explorer uri */
+static const QString MERGE_INFO_TESTNET = MERGE_INFO_MAINNET;
 
 #endif // BITCOIN_QT_GUICONSTANTS_H
