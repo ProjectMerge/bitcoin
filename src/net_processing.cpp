@@ -1625,7 +1625,8 @@ void static ProcessGetData(CNode* pfrom, const CChainParams& chainparams, CConnm
             // Send stream from relay memory
             bool push = false;
 
-            if(pfrom->m_tx_relay != nullptr && (inv.type == MSG_TX || inv.type == MSG_WITNESS_TX)){
+            if(pfrom->m_tx_relay != nullptr && (inv.type == MSG_TX || inv.type == MSG_WITNESS_TX))
+            {
                 auto mi = mapRelay.find(inv.hash);
                 int nSendFlags = (inv.type == MSG_TX ? SERIALIZE_TRANSACTION_NO_WITNESS : 0);
                 if (mi != mapRelay.end()) {
@@ -1644,11 +1645,13 @@ void static ProcessGetData(CNode* pfrom, const CChainParams& chainparams, CConnm
                         push = true;
                     }
                 }
+
                 if (!push) {
                     vNotFound.push_back(inv);
                 }
-            }
-            else{
+
+            } else {
+
                 if (!push && inv.type == MSG_SPORK) {
                     if(mapSporks.count(inv.hash)) {
                         connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::SPORK, mapSporks[inv.hash]));
@@ -1658,30 +1661,21 @@ void static ProcessGetData(CNode* pfrom, const CChainParams& chainparams, CConnm
 
                 if (!push && inv.type == MSG_MASTERNODE_WINNER) {
                     if (masternodePayments.mapMasternodePayeeVotes.count(inv.hash)) {
-                        CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
-                        ss.reserve(1000);
-                        ss << masternodePayments.mapMasternodePayeeVotes[inv.hash];
-                        connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::MNWINNER, ss));
+                        connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::MNWINNER, masternodePayments.mapMasternodePayeeVotes[inv.hash]));
                         push = true;
                     }
                 }
 
                 if (!push && inv.type == MSG_MASTERNODE_ANNOUNCE) {
                     if(mnodeman.mapSeenMasternodeBroadcast.count(inv.hash)){
-                        CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
-                        ss.reserve(1000);
-                        ss << mnodeman.mapSeenMasternodeBroadcast[inv.hash];
-                        connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::MNBROADCAST, ss));
+                        connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::MNBROADCAST, mnodeman.mapSeenMasternodeBroadcast[inv.hash]));
                         push = true;
                     }
                 }
 
                 if (!push && inv.type == MSG_MASTERNODE_PING) {
                     if(mnodeman.mapSeenMasternodePing.count(inv.hash)) {
-                        CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
-                        ss.reserve(1000);
-                        ss << mnodeman.mapSeenMasternodePing[inv.hash];
-                        connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::MNPING, ss));
+                        connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::MNPING, mnodeman.mapSeenMasternodePing[inv.hash]));
                         push = true;
                     }
                 }
@@ -1740,6 +1734,10 @@ inline void static SendBlockTransactions(const CBlock& block, const BlockTransac
 
 bool static ProcessHeadersMessage(CNode* pfrom, CConnman* connman, CTxMemPool& mempool, const std::vector<CBlockHeader>& headers, const CChainParams& chainparams, bool via_compact_block)
 {
+    //! cant do anything with a legacy peer
+    if (!IsHeadersNode(pfrom))
+        return true;
+
     const CNetMsgMaker msgMaker(pfrom->GetSendVersion());
     size_t nCount = headers.size();
 
@@ -1982,6 +1980,10 @@ void static ProcessOrphanTx(CConnman* connman, CTxMemPool& mempool, std::set<uin
 
 bool ProcessMessage(CNode* pfrom, const std::string& msg_type, CDataStream& vRecv, int64_t nTimeReceived, const CChainParams& chainparams, CTxMemPool& mempool, CConnman* connman, BanMan* banman, const std::atomic<bool>& interruptMsgProc)
 {
+    //! just snarf these as they are spam
+    if (msg_type == NetMsgType::DSEEP)
+        return true;
+
     LogPrint(BCLog::NET, "received: %s (%u bytes) peer=%d\n", SanitizeString(msg_type), vRecv.size(), pfrom->GetId());
     if (gArgs.IsArgSet("-dropmessagestest") && GetRand(gArgs.GetArg("-dropmessagestest", 0)) == 0)
     {

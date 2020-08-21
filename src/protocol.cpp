@@ -56,6 +56,7 @@ const char* FINALBUDGET = "fbs";
 const char* FINALBUDGETVOTE = "fbvote";
 const char* SYNCSTATUSCOUNT = "ssc";
 const char* DSEG = "dseg";
+const char* DSEEP = "dseep";
 }; // namespace NetMsgType
 
 static const char* ppszTypeName[] = {
