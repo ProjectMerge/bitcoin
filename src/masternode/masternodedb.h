@@ -8,23 +8,24 @@
 #define MASTERNODEDB_H
 
 #include <base58.h>
+#include <fs.h>
 #include <key.h>
 #include <masternode/activemasternode.h>
+#include <masternode/masternode-payments.h>
 #include <masternode/masternode.h>
 #include <net.h>
 #include <sync.h>
 #include <util/system.h>
 #include <validation.h>
 
-void DumpMasternodes();
-
 class CMasternodeMan;
 
-/** Access to the MN database (mncache.dat)
- */
+void DumpMasternodes();
+void DumpMasternodePayments();
+
 class CMasternodeDB {
 private:
-    boost::filesystem::path pathMN;
+    fs::path pathMN;
     std::string strMagicMessage;
 
 public:
@@ -41,6 +42,27 @@ public:
     CMasternodeDB();
     bool Write(const CMasternodeMan& mnodemanToSave);
     ReadResult Read(CMasternodeMan& mnodemanToLoad, bool fDryRun = false);
+};
+
+class CMasternodePaymentDB {
+private:
+    fs::path pathDB;
+    std::string strMagicMessage;
+
+public:
+    enum ReadResult {
+        Ok,
+        FileError,
+        HashReadError,
+        IncorrectHash,
+        IncorrectMagicMessage,
+        IncorrectMagicNumber,
+        IncorrectFormat
+    };
+
+    CMasternodePaymentDB();
+    bool Write(const CMasternodePayments& objToSave);
+    ReadResult Read(CMasternodePayments& objToLoad, bool fDryRun = false);
 };
 
 #endif
