@@ -1828,10 +1828,10 @@ bool AppInitMain(NodeContext& node)
     auto m_wallet = GetMainWallet();
     LogPrintf("Using masternode config file %s\n", GetMasternodeConfigFile().string());
 
-    if(m_wallet && gArgs.GetBoolArg("-mnconflock", true) && (masternodeConfig.getCount() > 0))
+    if(gArgs.GetBoolArg("-mnconflock", true) && masternodeConfig.getCount() > -1)
     {
         LOCK(m_wallet->cs_wallet);
-        LogPrint(BCLog::MASTERNODE, "Locking Masternodes:");
+        LogPrint(BCLog::MASTERNODE, "Locking Masternodes:\n");
         uint256 mnTxHash;
         int outputIndex;
         for (CMasternodeConfig::CMasternodeEntry mne : masternodeConfig.getEntries()) {
