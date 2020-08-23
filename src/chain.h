@@ -385,15 +385,18 @@ const CBlockIndex* LastCommonAncestor(const CBlockIndex* pa, const CBlockIndex* 
 class CDiskBlockIndex : public CBlockIndex
 {
 public:
+    uint256 hash;
     uint256 hashPrev;
     uint256 hashNext;
 
     CDiskBlockIndex() {
+        hash = uint256();
         hashPrev = uint256();
         hashNext = uint256();
     }
 
     explicit CDiskBlockIndex(const CBlockIndex* pindex) : CBlockIndex(*pindex) {
+        hash = (hash == uint256() ? pindex->GetBlockHash() : hash);
         hashPrev = (pprev ? pprev->GetBlockHash() : uint256());
     }
 
@@ -419,6 +422,9 @@ public:
             READWRITE(obj.nStakeTime);
         }
 
+        // block hash
+        READWRITE(obj.hash);
+
         // block header
         READWRITE(obj.nVersion);
         READWRITE(obj.hashPrev);
@@ -431,6 +437,8 @@ public:
 
     uint256 GetBlockHash() const
     {
+        if(hash != uint256())
+           return hash;
         CBlockHeader block;
         block.nVersion        = nVersion;
         block.hashPrevBlock   = hashPrev;
