@@ -412,7 +412,8 @@ UniValue getmasternodeoutputs(const JSONRPCRequest& request)
     auto locked_chain = GetMainWallet()->chain().lock();
     LOCK(GetMainWallet()->cs_wallet);
 
-    GetMainWallet()->AvailableCoins(*locked_chain, possibleCoins, true, nullptr, false, false, ONLY_MASTERNODE_COLLATERAL);
+    auto mnCollateral = Params().GetConsensus().nCollateralAmount;
+    GetMainWallet()->AvailableCoins(*locked_chain, possibleCoins, true, nullptr, mnCollateral, mnCollateral);
 
     UniValue ret(UniValue::VARR);
     for (COutput& out : possibleCoins) {

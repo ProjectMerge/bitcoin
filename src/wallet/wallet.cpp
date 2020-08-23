@@ -4408,7 +4408,8 @@ bool CWallet::GetMasternodeOutpointAndKeys(COutPoint& outpointRet, CPubKey& pubK
 
     // Find possible candidates
     std::vector<COutput> vPossibleCoins;
-    AvailableCoins(*locked_chain, vPossibleCoins, true, NULL, false, ONLY_MASTERNODE_COLLATERAL);
+    auto mnCollateral = Params().GetConsensus().nCollateralAmount;
+    AvailableCoins(*locked_chain, vPossibleCoins, true, nullptr, mnCollateral, mnCollateral);
 
     if (vPossibleCoins.empty()) {
         LogPrintf("CWallet::GetMasternodeOutpointAndKeys -- Could not locate any valid masternode vin\n");
