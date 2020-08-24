@@ -167,8 +167,8 @@ void CMasternodeMan::CheckAndRemove(bool forceExpiredRemoval)
     while (it3 != mapSeenMasternodeBroadcast.end()) {
         if ((*it3).second.lastPing.sigTime < GetTime() - (MASTERNODE_REMOVAL_SECONDS * 2)) {
             LogPrint(BCLog::MASTERNODE, "CMasternodeMan::CheckAndRemove - Removing expired Masternode broadcast %s\n", (*it3).second.GetHash().ToString());
-            masternodeSync.mapSeenSyncMNB.erase((*it3).second.GetHash());
             mapSeenMasternodeBroadcast.erase(it3++);
+            masternodeSync.mapSeenSyncMNB.erase((*it3).second.GetHash());
         } else {
             ++it3;
         }
@@ -485,7 +485,7 @@ int CMasternodeMan::GetMasternodeRank(const CTxIn& vin, int64_t nBlockHeight, in
     sort(vecMasternodeScores.rbegin(), vecMasternodeScores.rend(), CompareScoreTxIn());
 
     int rank = 0;
-    for (const auto s : vecMasternodeScores) {
+    for (const auto& s : vecMasternodeScores) {
         rank++;
         if (s.second.prevout == vin.prevout) {
             return rank;
@@ -526,7 +526,7 @@ std::vector<std::pair<int, CMasternode>> CMasternodeMan::GetMasternodeRanks(int6
     sort(vecMasternodeScores.rbegin(), vecMasternodeScores.rend(), CompareScoreMN());
 
     int rank = 0;
-    for (const auto s : vecMasternodeScores) {
+    for (const auto& s : vecMasternodeScores) {
         rank++;
         vecMasternodeRanks.push_back(std::make_pair(rank, s.second));
     }
@@ -557,7 +557,7 @@ CMasternode* CMasternodeMan::GetMasternodeByRank(int nRank, int64_t nBlockHeight
     sort(vecMasternodeScores.rbegin(), vecMasternodeScores.rend(), CompareScoreTxIn());
 
     int rank = 0;
-    for (const auto s : vecMasternodeScores) {
+    for (const auto& s : vecMasternodeScores) {
         rank++;
         if (rank == nRank) {
             return Find(s.second);
@@ -710,7 +710,7 @@ void CMasternodeMan::ProcessMessage(CNode* pfrom, const std::string& strCommand,
         }
 
         if (vin == CTxIn()) {
-            connman.PushMessage(pfrom, CNetMsgMaker(pfrom->GetSendVersion()).Make("ssc", MASTERNODE_SYNC_LIST, nInvCount));
+            connman.PushMessage(pfrom, CNetMsgMaker(pfrom->GetSendVersion()).Make(NetMsgType::SYNCSTATUSCOUNT, MASTERNODE_SYNC_LIST, nInvCount));
             LogPrint(BCLog::MASTERNODE, "dseg - Sent %d Masternode entries to peer %i\n", nInvCount, pfrom->GetId());
         }
         return;

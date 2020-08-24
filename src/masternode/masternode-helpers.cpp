@@ -72,7 +72,7 @@ bool CMasternodeSigner::VerifyMessage(CPubKey pubkey, std::vector<unsigned char>
         return false;
     }
 
-    auto verifyResult = pubkey2.GetID() == pubkey.GetID();
+    auto verifyResult = PKHash(pubkey2) == PKHash(pubkey);
     if (!verifyResult)
         LogPrint(BCLog::MASTERNODE, "CMasternodeSigner::VerifyMessage -- keys don't match: %s %s (called by %s)\n", pubkey2.GetID().ToString(), pubkey.GetID().ToString(), caller);
     else

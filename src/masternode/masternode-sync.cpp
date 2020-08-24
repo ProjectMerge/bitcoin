@@ -12,6 +12,7 @@
 #include <masternode/netfulfilledman.h>
 #include <masternode/spork.h>
 #include <netmessagemaker.h>
+#include <net_processing.h>
 // clang-format on
 
 class CMasternodeSync;
@@ -115,6 +116,7 @@ void CMasternodeSync::GetNextAsset()
     switch (RequestedMasternodeAssets) {
     case (MASTERNODE_SYNC_INITIAL):
     case (MASTERNODE_SYNC_FAILED): // should never be used here actually, use Reset() instead
+        netfulfilledman.Clear();
         RequestedMasternodeAssets = MASTERNODE_SYNC_SPORKS;
         break;
     case (MASTERNODE_SYNC_SPORKS):
@@ -295,7 +297,7 @@ void CMasternodeSync::Process(CConnman& connman)
             }
         }
 
-        if (pnode->nVersion >= PROTOCOL_VERSION) {
+        if (pnode->nVersion >= ActiveProtocol()) {
             if (RequestedMasternodeAssets == MASTERNODE_SYNC_BUDGET) {
                 // We'll start rejecting votes if we accidentally get set as synced too soon
                 if (lastBudgetItem > 0 && lastBudgetItem < GetTime() - MASTERNODE_SYNC_TIMEOUT * 2 && RequestedMasternodeAttempt >= MASTERNODE_SYNC_THRESHOLD) {

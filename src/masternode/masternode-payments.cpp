@@ -10,6 +10,7 @@
 #include <masternode/masternodedb.h>
 #include <masternode/masternodeman.h>
 #include <masternode/netfulfilledman.h>
+#include <masternode/spork.h>
 #include <net_processing.h>
 #include <netmessagemaker.h>
 #include <util/moneystr.h>
@@ -108,8 +109,12 @@ bool IsBlockPayeeValid(const CBlock& block, int nBlockHeight)
     //check for masternode payee
     if (masternodePayments.IsTransactionValid(txNew, nBlockHeight))
         return true;
+    LogPrint(BCLog::MASTERNODE, "Invalid mn payment detected %s\n", txNew->ToString().c_str());
 
+    if (sporkManager.IsSporkActive(Spork::SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT))
+        return false;
     LogPrint(BCLog::MASTERNODE, "Masternode payment enforcement is disabled, accepting block\n");
+
     return true;
 }
 
@@ -314,7 +319,7 @@ bool CMasternodePayments::IsScheduled(CMasternode& mn, int nNotBlockHeight)
 
 bool CMasternodePayments::AddWinningMasternode(CMasternodePaymentWinner& winnerIn)
 {
-    uint256 blockHash;
+    uint256 blockHash = uint256();
     if (!GetBlockHash(blockHash, winnerIn.nBlockHeight - 100)) {
         return false;
     }
