@@ -743,11 +743,9 @@ void CMasternodeMan::UpdateMasternodeList(CMasternodeBroadcast mnb, CConnman& co
     CMasternode* pmn = Find(mnb.vin);
     if (!pmn) {
         CMasternode mn(mnb);
-        if (Add(mn)) {
-            masternodeSync.AddedMasternodeList(mnb.GetHash());
-        }
-    } else if (pmn->UpdateFromNewBroadcast(mnb, connman)) {
-        masternodeSync.AddedMasternodeList(mnb.GetHash());
+        Add(mn);
+    } else {
+        pmn->UpdateFromNewBroadcast(mnb, connman);
     }
 }
 

@@ -428,7 +428,7 @@ bool CMasternodeBroadcast::Create(std::string strService, std::string strKeyMast
     }
 
     COutPoint mnOutput(txin.prevout.hash, txin.prevout.n);
-    if (!GetMainWallet()->GetMasternodeOutpointAndKeys(mnOutput, pubKeyCollateralAddressNew, keyCollateralAddressNew, strTxHash, strOutputIndex)) {
+    if (!GetMasternodeOutpointAndKeys(mnOutput, pubKeyCollateralAddressNew, keyCollateralAddressNew, strTxHash, strOutputIndex)) {
         strErrorRet = strprintf("Could not allocate txin %s:%s for masternode %s", strTxHash, strOutputIndex, strService);
         LogPrint(BCLog::MASTERNODE, "CMasternodeBroadcast::Create -- %s\n", strErrorRet);
         return false;

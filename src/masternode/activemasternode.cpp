@@ -274,10 +274,7 @@ bool CActiveMasternode::GetMasterNodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secr
         return false;
 
     // Find possible candidates
-    TRY_LOCK(GetMainWallet()->cs_wallet, fWallet);
-    if (!fWallet)
-        return false;
-
+    LOCK(GetMainWallet()->cs_wallet);
     std::vector<COutput> possibleCoins = SelectCoinsMasternode();
     COutput* selectedOutput;
 

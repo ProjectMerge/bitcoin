@@ -48,6 +48,7 @@ UniValue listmasternodes(const JSONRPCRequest& request)
             "    \"status\": s,         (string) Status (ENABLED/EXPIRED/REMOVE/etc)\n"
             "    \"addr\": \"addr\",      (string) Masternode MERGE address\n"
             "    \"version\": v,        (numeric) Masternode protocol version\n"
+            "    \"ipaddr\": a,         (string) Masternode network address\n"
             "    \"lastseen\": ttt,     (numeric) The time in seconds since epoch (Jan 1 1970 GMT) of the last seen\n"
             "    \"activetime\": ttt,   (numeric) The time in seconds since epoch (Jan 1 1970 GMT) masternode has been active\n"
             "    \"lastpaid\": ttt,     (numeric) The time in seconds since epoch (Jan 1 1970 GMT) masternode was last paid\n"
@@ -92,6 +93,7 @@ UniValue listmasternodes(const JSONRPCRequest& request)
             obj.pushKV("status", strStatus);
             obj.pushKV("addr", EncodeDestination(PKHash(mn->pubKeyCollateralAddress)));
             obj.pushKV("version", mn->protocolVersion);
+            obj.pushKV("ipaddr", mn->addr.ToString());
             obj.pushKV("lastseen", (int64_t)mn->lastPing.sigTime);
             obj.pushKV("activetime", (int64_t)(mn->lastPing.sigTime - mn->sigTime));
             obj.pushKV("lastpaid", (int64_t)mn->GetLastPaid());
@@ -408,12 +410,7 @@ UniValue getmasternodeoutputs(const JSONRPCRequest& request)
             + HelpExampleCli("getmasternodeoutputs", "") + HelpExampleRpc("getmasternodeoutputs", ""));
 
     // Find possible candidates
-    std::vector<COutput> possibleCoins;
-    auto locked_chain = GetMainWallet()->chain().lock();
-    LOCK(GetMainWallet()->cs_wallet);
-
-    auto mnCollateral = Params().GetConsensus().nCollateralAmount;
-    GetMainWallet()->AvailableCoins(*locked_chain, possibleCoins, true, nullptr, mnCollateral, mnCollateral);
+    std::vector<COutput> possibleCoins = activeMasternode.SelectCoinsMasternode();
 
     UniValue ret(UniValue::VARR);
     for (COutput& out : possibleCoins) {
