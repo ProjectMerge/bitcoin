@@ -62,6 +62,7 @@ private:
     QString strCurrentFilter;
 
 private Q_SLOTS:
+    void notReady();
     void showContextMenu(const QPoint&);
     void on_startButton_clicked();
     void on_startAllButton_clicked();

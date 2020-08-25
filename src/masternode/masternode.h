@@ -312,6 +312,7 @@ public:
     bool VerifySignature();
     void Relay(CConnman& connman) const;
     std::string GetOldStrMessage();
+    std::string GetNewStrMessage();
 
     ADD_SERIALIZE_METHODS;
 

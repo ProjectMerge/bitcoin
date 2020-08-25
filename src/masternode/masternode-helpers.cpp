@@ -60,7 +60,7 @@ bool CMasternodeSigner::SignMessage(std::string strMessage, std::string& errorMe
     return true;
 }
 
-bool CMasternodeSigner::VerifyMessage(CPubKey pubkey, std::vector<unsigned char>& vchSig, std::string strMessage, std::string& errorMessage)
+bool CMasternodeSigner::VerifyMessage(CPubKey pubkey, std::vector<unsigned char>& vchSig, std::string strMessage, std::string& errorMessage, const char* caller)
 {
     CHashWriter ss(SER_GETHASH, 0);
     ss << strMessageMagic;
@@ -72,24 +72,28 @@ bool CMasternodeSigner::VerifyMessage(CPubKey pubkey, std::vector<unsigned char>
         return false;
     }
 
-    if (pubkey2.GetID() != pubkey.GetID())
-        LogPrint(BCLog::MASTERNODE, "CMasternodeSigner::VerifyMessage -- keys don't match: %s %s\n", pubkey2.GetID().ToString(), pubkey.GetID().ToString());
+    auto verifyResult = PKHash(pubkey2) == PKHash(pubkey);
+    if (!verifyResult)
+        LogPrint(BCLog::MASTERNODE, "CMasternodeSigner::VerifyMessage -- keys don't match: %s %s (called by %s)\n", pubkey2.GetID().ToString(), pubkey.GetID().ToString(), caller);
+    else
+        LogPrint(BCLog::MASTERNODE, "CMasternodeSigner::VerifyMessage -- keys match: %s %s (called by %s)\n", pubkey2.GetID().ToString(), pubkey.GetID().ToString(), caller);
 
-    return (pubkey2.GetID() == pubkey.GetID());
+    return verifyResult;
 }
 
 void ThreadMasternodePool()
 {
-    if (ShutdownRequested()) return;
-    if (::ChainstateActive().IsInitialBlockDownload()) return;
+    if (ShutdownRequested())
+        return;
+    if (::ChainstateActive().IsInitialBlockDownload())
+        return;
 
     static unsigned int c = 0;
 
     // try to sync from all available nodes, one step at a time
     masternodeSync.Process(*g_rpc_node->connman);
 
-    if (masternodeSync.IsBlockchainSynced())
-    {
+    if (masternodeSync.IsBlockchainSynced()) {
         c++;
 
         // check if we should activate or ping every few minutes,
@@ -103,4 +107,52 @@ void ThreadMasternodePool()
             masternodePayments.CleanPaymentList();
         }
     }
+}
+
+bool GetMasternodeVinAndKeys(CTxIn& txinRet, CPubKey& pubKeyRet, CKey& keyRet, std::string strTxHash, std::string strOutputIndex)
+{
+    std::vector<COutput> vPossibleCoins = activeMasternode.SelectCoinsMasternode();
+    if (vPossibleCoins.empty()) {
+        LogPrintf("CWallet::GetMasternodeVinAndKeys -- Could not locate any valid masternode vin\n");
+        return false;
+    }
+
+    if (strTxHash.empty())
+        return GetVinAndKeysFromOutput(vPossibleCoins[0], txinRet, pubKeyRet, keyRet);
+
+    // Find specific vin
+    uint256 txHash = uint256S(strTxHash);
+    int nOutputIndex = atoi(strOutputIndex.c_str());
+
+    for (COutput& out : vPossibleCoins)
+        if (out.tx->GetHash() == txHash && out.i == nOutputIndex)
+            return GetVinAndKeysFromOutput(out, txinRet, pubKeyRet, keyRet);
+
+    return false;
+}
+
+bool GetVinAndKeysFromOutput(COutput out, CTxIn& txinRet, CPubKey& pubKeyRet, CKey& keyRet)
+{
+    CScript pubScript;
+    txinRet = CTxIn(out.tx->GetHash(), out.i);
+    pubScript = out.tx->tx->vout[out.i].scriptPubKey;
+
+    auto m_wallet = GetMainWallet();
+    LegacyScriptPubKeyMan* spk_man = m_wallet->GetLegacyScriptPubKeyMan();
+
+    CTxDestination address1;
+    ExtractDestination(pubScript, address1);
+    CKeyID keyID = GetKeyForDestination(*spk_man, address1);
+    if (keyID.IsNull()) {
+        LogPrintf("CWallet::GetVinAndKeysFromOutput -- Address does not refer to a key\n");
+        return false;
+    }
+
+    if (!spk_man->GetKey(keyID, keyRet)) {
+        LogPrintf("CWallet::GetVinAndKeysFromOutput -- Private key for address is not known\n");
+        return false;
+    }
+
+    pubKeyRet = keyRet.GetPubKey();
+    return true;
 }

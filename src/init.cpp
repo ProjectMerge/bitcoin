@@ -589,6 +589,9 @@ void SetupServerArgs()
 #endif
 
     // Add the hidden options
+    gArgs.AddArg("-masternode", "Run as masternode", false, OptionsCategory::MASTERNODE);
+    gArgs.AddArg("-masternodeprivkey", "Masternode private key", false, OptionsCategory::MASTERNODE);
+    hidden_args.emplace_back("-sporkkey");
     gArgs.AddHiddenArgs(hidden_args);
 }
 
@@ -1802,7 +1805,7 @@ bool AppInitMain(NodeContext& node)
 
     if(fMasternode)
     {
-        LogPrint(BCLog::MASTERNODE, "MASTERNODE:");
+        LogPrint(BCLog::MASTERNODE, "MASTERNODE:\n");
 
         if (!strMasterNodeAddr.empty()) {
             CService addrTest = CService(strMasterNodeAddr);
@@ -1818,9 +1821,9 @@ bool AppInitMain(NodeContext& node)
             CPubKey pubkey;
             if(!masternodeSigner.GetKeysFromSecret(strMasterNodePrivKey, key, pubkey))
                return InitError("Invalid masternodeprivkey. Please see documenation.");
-            LogPrint(BCLog::MASTERNODE, "  pubKeyMasternode: %s", activeMasternode.pubKeyMasternode.GetID().ToString());
+            LogPrint(BCLog::MASTERNODE, "  pubKeyMasternode: %s\n", activeMasternode.pubKeyMasternode.GetID().ToString());
         } else {
-            return InitError("You must specify a masternodeprivkey in the configuration. Please see documentation for help.");
+            return InitError("You must specify a masternodeprivkey in the configuration. Please see documentation for help.\n");
         }
 
     }
@@ -1828,10 +1831,11 @@ bool AppInitMain(NodeContext& node)
     auto m_wallet = GetMainWallet();
     LogPrintf("Using masternode config file %s\n", GetMasternodeConfigFile().string());
 
-    if(gArgs.GetBoolArg("-mnconflock", true) && masternodeConfig.getCount() > -1)
+    mnConfigTotal = masternodeConfig.getCount();
+    if(mnConfigTotal > -1)
     {
         LOCK(m_wallet->cs_wallet);
-        LogPrint(BCLog::MASTERNODE, "Locking Masternodes:\n");
+        LogPrintf("Locking Masternodes:\n");
         uint256 mnTxHash;
         int outputIndex;
         for (CMasternodeConfig::CMasternodeEntry mne : masternodeConfig.getEntries()) {
@@ -1839,11 +1843,11 @@ bool AppInitMain(NodeContext& node)
             outputIndex = boost::lexical_cast<unsigned int>(mne.getOutputIndex());
             COutPoint outpoint = COutPoint(mnTxHash, outputIndex);
             if(m_wallet->IsMine(CTxIn(outpoint)) != ISMINE_SPENDABLE) {
-                LogPrint(BCLog::MASTERNODE, "  %s %s - IS NOT SPENDABLE, was not locked\n", mne.getTxHash(), mne.getOutputIndex());
+                LogPrintf("  %s %s - IS NOT SPENDABLE, was not locked\n", mne.getTxHash(), mne.getOutputIndex());
                 continue;
             }
             m_wallet->LockCoin(outpoint);
-            LogPrint(BCLog::MASTERNODE, "  %s %s - locked successfully\n", mne.getTxHash(), mne.getOutputIndex());
+            LogPrintf("  %s %s - locked successfully\n", mne.getTxHash(), mne.getOutputIndex());
         }
     }
 

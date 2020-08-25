@@ -428,7 +428,7 @@ bool CMasternodeBroadcast::Create(std::string strService, std::string strKeyMast
     }
 
     COutPoint mnOutput(txin.prevout.hash, txin.prevout.n);
-    if (!GetMainWallet()->GetMasternodeOutpointAndKeys(mnOutput, pubKeyCollateralAddressNew, keyCollateralAddressNew, strTxHash, strOutputIndex)) {
+    if (!GetMasternodeVinAndKeys(txin, pubKeyCollateralAddressNew, keyCollateralAddressNew, strTxHash, strOutputIndex)) {
         strErrorRet = strprintf("Could not allocate txin %s:%s for masternode %s", strTxHash, strOutputIndex, strService);
         LogPrint(BCLog::MASTERNODE, "CMasternodeBroadcast::Create -- %s\n", strErrorRet);
         return false;
@@ -696,7 +696,15 @@ bool CMasternodeBroadcast::VerifySignature()
 {
     std::string errorMessage;
 
-    if (!masternodeSigner.VerifyMessage(pubKeyCollateralAddress, sig, GetOldStrMessage(), errorMessage))
+    bool result = false;
+    for (int i = 0; i < 2; i++) {
+        if (masternodeSigner.VerifyMessage(pubKeyCollateralAddress, sig, i ? GetNewStrMessage() : GetOldStrMessage(), errorMessage)) {
+            result = true;
+            continue;
+        }
+    }
+
+    if (!result)
         return error("CMasternodeBroadcast::VerifySignature() - Error: %s\n", errorMessage);
 
     return true;
@@ -709,6 +717,15 @@ std::string CMasternodeBroadcast::GetOldStrMessage()
     std::string vchPubKey(pubKeyCollateralAddress.begin(), pubKeyCollateralAddress.end());
     std::string vchPubKey2(pubKeyMasternode.begin(), pubKeyMasternode.end());
     strMessage = addr.ToString() + std::to_string(sigTime) + vchPubKey + vchPubKey2 + std::to_string(protocolVersion);
+
+    return strMessage;
+}
+
+std::string CMasternodeBroadcast::GetNewStrMessage()
+{
+    std::string strMessage;
+
+    strMessage = addr.ToString() + std::to_string(sigTime) + pubKeyCollateralAddress.GetID().ToString() + pubKeyMasternode.GetID().ToString() + std::to_string(protocolVersion);
 
     return strMessage;
 }

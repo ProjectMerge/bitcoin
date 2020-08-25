@@ -489,6 +489,9 @@ std::string ArgsManager::GetHelpMessage() const
             case OptionsCategory::REGISTER_COMMANDS:
                 usage += HelpMessageGroup("Register Commands:");
                 break;
+            case OptionsCategory::MASTERNODE:
+                usage += HelpMessageGroup("Masternode Commands:");
+                break;
             default:
                 break;
         }
@@ -713,10 +716,9 @@ static bool GetConfigOptions(std::istream& stream, const std::string& filepath, 
 
 fs::path GetMasternodeConfigFile()
 {
-    boost::filesystem::path pathConfigFile(gArgs.GetArg("-mnconf", "masternode.conf"));
+    fs::path pathConfigFile(gArgs.GetArg("-mnconf", "masternode.conf"));
     if (!pathConfigFile.is_complete())
-        return fs::absolute(pathConfigFile, GetDataDir());
-
+        pathConfigFile = GetDataDir() / pathConfigFile;
     return pathConfigFile;
 }
 

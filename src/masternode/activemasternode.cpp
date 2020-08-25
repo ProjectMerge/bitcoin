@@ -13,6 +13,7 @@
 #include <wallet/coincontrol.h>
 #include <wallet/rpcwallet.h>
 
+int mnConfigTotal { -1 };
 CActiveMasternode activeMasternode;
 
 //
@@ -21,6 +22,7 @@ CActiveMasternode activeMasternode;
 void CActiveMasternode::ManageStatus(CConnman& connman)
 {
     std::string errorMessage;
+    auto m_wallet = GetMainWallet();
 
     if (!fMasternode)
         return;
@@ -52,14 +54,14 @@ void CActiveMasternode::ManageStatus(CConnman& connman)
         status = ACTIVE_MASTERNODE_NOT_CAPABLE;
         notCapableReason = "";
 
-        if (GetMainWallet()->IsLocked()) {
+        if (m_wallet->IsLocked()) {
             notCapableReason = "Wallet is locked.";
             LogPrint(BCLog::MASTERNODE, "CActiveMasternode::ManageStatus() - not capable: %s\n", notCapableReason);
             return;
         }
 
         CCoinControl coin_control;
-        if (GetMainWallet()->GetBalance(0, coin_control.m_avoid_address_reuse).m_mine_trusted == 0) {
+        if (m_wallet->GetBalance(0, coin_control.m_avoid_address_reuse).m_mine_trusted == 0) {
             notCapableReason = "Hot node, waiting for remote activation.";
             LogPrint(BCLog::MASTERNODE, "CActiveMasternode::ManageStatus() - not capable: %s\n", notCapableReason);
             return;
@@ -75,15 +77,11 @@ void CActiveMasternode::ManageStatus(CConnman& connman)
             service = CService(strMasterNodeAddr);
         }
 
-        // The service needs the correct default port to work properly
-        if (!CMasternodeBroadcast::CheckDefaultPort(strMasterNodeAddr, errorMessage, "CActiveMasternode::ManageStatus()"))
-            return;
-
         // Choose coins to use
         CPubKey pubKeyCollateralAddress;
         CKey keyCollateralAddress;
 
-        if (GetMasterNodeVin(vin, pubKeyCollateralAddress, keyCollateralAddress)) {
+        if (GetMasternodeVin(vin, pubKeyCollateralAddress, keyCollateralAddress)) {
             COutPoint mnConfirms(vin.prevout.hash, vin.prevout.n);
             if (GetUTXOConfirmations(mnConfirms) < MASTERNODE_MIN_CONFIRMATIONS) {
                 status = ACTIVE_MASTERNODE_INPUT_TOO_NEW;
@@ -92,8 +90,8 @@ void CActiveMasternode::ManageStatus(CConnman& connman)
                 return;
             }
 
-            LOCK(GetMainWallet()->cs_wallet);
-            GetMainWallet()->LockCoin(vin.prevout);
+            LOCK(m_wallet->cs_wallet);
+            m_wallet->LockCoin(vin.prevout);
 
             // send to all nodes
             CPubKey pubKeyMasternode;
@@ -223,7 +221,7 @@ bool CActiveMasternode::CreateBroadcast(std::string strService, std::string strK
         return false;
     }
 
-    if (!GetMasterNodeVin(vin, pubKeyCollateralAddress, keyCollateralAddress, strTxHash, strOutputIndex)) {
+    if (!GetMasternodeVin(vin, pubKeyCollateralAddress, keyCollateralAddress, strTxHash, strOutputIndex)) {
         errorMessage = strprintf("Could not allocate vin %s:%s for masternode %s", strTxHash, strOutputIndex, strService);
         LogPrint(BCLog::MASTERNODE, "CActiveMasternode::CreateBroadcast() - %s\n", errorMessage);
         return false;
@@ -262,37 +260,20 @@ bool CActiveMasternode::CreateBroadcast(CTxIn vin, CService service, CKey keyCol
     return true;
 }
 
-bool CActiveMasternode::GetMasterNodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secretKey)
+bool CActiveMasternode::GetMasternodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secretKey)
 {
-    return GetMasterNodeVin(vin, pubkey, secretKey, "", "");
+    return GetMasternodeVin(vin, pubkey, secretKey, "", "");
 }
 
-bool CActiveMasternode::GetMasterNodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secretKey, std::string strTxHash, std::string strOutputIndex)
+bool CActiveMasternode::GetMasternodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secretKey, std::string strTxHash, std::string strOutputIndex)
 {
-    // wait for reindex and/or import to finish
-    if (fImporting || fReindex)
-        return false;
-
-    // Find possible candidates
-    TRY_LOCK(GetMainWallet()->cs_wallet, fWallet);
-    if (!fWallet)
-        return false;
-
     std::vector<COutput> possibleCoins = SelectCoinsMasternode();
     COutput* selectedOutput;
 
     // Find the vin
     if (!strTxHash.empty()) {
-        // Let's find it
         uint256 txHash(uint256S(strTxHash));
-        int outputIndex;
-        try {
-            outputIndex = std::stoi(strOutputIndex.c_str());
-        } catch (const std::exception& e) {
-            LogPrint(BCLog::MASTERNODE, "%s: %s on strOutputIndex\n", __func__, e.what());
-            return false;
-        }
-
+        int outputIndex = atoi(strOutputIndex.c_str());
         bool found = false;
         for (COutput& out : possibleCoins) {
             if (out.tx->GetHash() == txHash && out.i == outputIndex) {
@@ -302,7 +283,7 @@ bool CActiveMasternode::GetMasterNodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secr
             }
         }
         if (!found) {
-            LogPrint(BCLog::MASTERNODE, "CActiveMasternode::GetMasterNodeVin - Could not locate valid vin\n");
+            LogPrintf("CActiveMasternode::GetMasternodeVin - Could not locate valid vin\n");
             return false;
         }
     } else {
@@ -310,7 +291,7 @@ bool CActiveMasternode::GetMasterNodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secr
         if (possibleCoins.size() > 0) {
             selectedOutput = &possibleCoins[0];
         } else {
-            LogPrint(BCLog::MASTERNODE, "CActiveMasternode::GetMasterNodeVin - Could not locate specified vin from possible list\n");
+            LogPrintf("CActiveMasternode::GetMasternodeVin - Could not locate specified vin from possible list\n");
             return false;
         }
     }
@@ -322,14 +303,10 @@ bool CActiveMasternode::GetMasterNodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secr
 // Extract Masternode vin information from output
 bool CActiveMasternode::GetVinFromOutput(COutput out, CTxIn& vin, CPubKey& pubkey, CKey& secretKey)
 {
-    // wait for reindex and/or import to finish
-    if (fImporting || fReindex)
-        return false;
-
     CScript pubScript;
 
     vin = CTxIn(out.tx->GetHash(), out.i);
-    pubScript = out.tx->tx->vout[out.i].scriptPubKey; // the inputs PubKey
+    pubScript = out.tx->tx->vout[out.i].scriptPubKey;
 
     CTxDestination address1;
     if (!ExtractDestination(pubScript, address1)) {
@@ -357,10 +334,12 @@ std::vector<COutput> CActiveMasternode::SelectCoinsMasternode()
     std::vector<COutput> filteredCoins;
     std::vector<COutPoint> confLockedCoins;
 
+    auto m_wallet = GetMainWallet();
+
     // Temporary unlock MN coins from masternode.conf
-    if (gArgs.GetBoolArg("-mnconflock", true)) {
+    if (mnConfigTotal > -1) {
         uint256 mnTxHash;
-        for (CMasternodeConfig::CMasternodeEntry mne : masternodeConfig.getEntries()) {
+        for (const auto mne : masternodeConfig.getEntries()) {
             mnTxHash.SetHex(mne.getTxHash());
 
             int nIndex;
@@ -369,17 +348,17 @@ std::vector<COutput> CActiveMasternode::SelectCoinsMasternode()
 
             COutPoint outpoint = COutPoint(mnTxHash, nIndex);
             confLockedCoins.push_back(outpoint);
-            GetMainWallet()->UnlockCoin(outpoint);
+            m_wallet->UnlockCoin(outpoint);
         }
     }
 
     // Retrieve all possible outputs
-    GetMainWallet()->AvailableCoins(vCoins);
+    m_wallet->AvailableCoins(vCoins);
 
     // Lock MN coins from masternode.conf back if they were temporary unlocked
     if (!confLockedCoins.empty()) {
         for (COutPoint outpoint : confLockedCoins)
-            GetMainWallet()->LockCoin(outpoint);
+            m_wallet->LockCoin(outpoint);
     }
 
     // Filter

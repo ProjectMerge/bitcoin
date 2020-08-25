@@ -74,6 +74,13 @@ MasternodeList::~MasternodeList()
     delete ui;
 }
 
+void MasternodeList::notReady()
+{
+     QMessageBox::critical(this, tr("Command is not available right now"),
+         tr("You can't use this command until masternode list is synced"));
+     return;
+}
+
 void MasternodeList::setClientModel(ClientModel* model)
 {
     this->clientModel = model;
@@ -304,6 +311,7 @@ void MasternodeList::on_filterLineEdit_textChanged(const QString &strFilterIn)
     fFilterUpdated = true;
     ui->countLabel->setText(QString::fromStdString(strprintf("Please wait... %d", MASTERNODELIST_FILTER_COOLDOWN_SECONDS)));
 }
+
 void MasternodeList::on_startButton_clicked()
 {
     // Find selected node alias
@@ -340,6 +348,11 @@ void MasternodeList::on_startButton_clicked()
 
 void MasternodeList::on_startAllButton_clicked()
 {
+    if (!masternodeSync.IsSynced()) {
+        notReady();
+        return;
+    }
+
     // Display message box
     QMessageBox::StandardButton retval = QMessageBox::question(this, tr("Confirm all masternodes start"),
         tr("Are you sure you want to start ALL masternodes?"),
@@ -364,13 +377,10 @@ void MasternodeList::on_startAllButton_clicked()
 
 void MasternodeList::on_startMissingButton_clicked()
 {
-#if 0
-    if (!masternodeSync.IsMasternodeListSynced()) {
-        QMessageBox::critical(this, tr("Command is not available right now"),
-            tr("You can't use this command until masternode list is synced"));
+    if (!masternodeSync.IsSynced()) {
+        notReady();
         return;
     }
-#endif
 
     // Display message box
     QMessageBox::StandardButton retval = QMessageBox::question(this,
@@ -404,5 +414,10 @@ void MasternodeList::on_tableWidgetMyMasternodes_itemSelectionChanged()
 
 void MasternodeList::on_UpdateButton_clicked()
 {
+    if (!masternodeSync.IsSynced()) {
+        notReady();
+        return;
+    }
+
     updateMyNodeList(true);
 }
