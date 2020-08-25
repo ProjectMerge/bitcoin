@@ -20,6 +20,8 @@
 #define ACTIVE_MASTERNODE_NOT_CAPABLE 3
 #define ACTIVE_MASTERNODE_STARTED 4
 
+extern int mnConfigTotal;
+
 class CActiveMasternode;
 extern CActiveMasternode activeMasternode;
 

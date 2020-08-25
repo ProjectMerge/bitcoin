@@ -1821,9 +1821,9 @@ bool AppInitMain(NodeContext& node)
             CPubKey pubkey;
             if(!masternodeSigner.GetKeysFromSecret(strMasterNodePrivKey, key, pubkey))
                return InitError("Invalid masternodeprivkey. Please see documenation.");
-            LogPrint(BCLog::MASTERNODE, "  pubKeyMasternode: %s", activeMasternode.pubKeyMasternode.GetID().ToString());
+            LogPrint(BCLog::MASTERNODE, "  pubKeyMasternode: %s\n", activeMasternode.pubKeyMasternode.GetID().ToString());
         } else {
-            return InitError("You must specify a masternodeprivkey in the configuration. Please see documentation for help.");
+            return InitError("You must specify a masternodeprivkey in the configuration. Please see documentation for help.\n");
         }
 
     }
@@ -1831,7 +1831,8 @@ bool AppInitMain(NodeContext& node)
     auto m_wallet = GetMainWallet();
     LogPrintf("Using masternode config file %s\n", GetMasternodeConfigFile().string());
 
-    if(masternodeConfig.getCount() > -1)
+    mnConfigTotal = masternodeConfig.getCount();
+    if(mnConfigTotal > -1)
     {
         LOCK(m_wallet->cs_wallet);
         LogPrintf("Locking Masternodes:\n");
