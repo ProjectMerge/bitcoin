@@ -1805,7 +1805,7 @@ bool AppInitMain(NodeContext& node)
 
     if(fMasternode)
     {
-        LogPrint(BCLog::MASTERNODE, "MASTERNODE:");
+        LogPrint(BCLog::MASTERNODE, "MASTERNODE:\n");
 
         if (!strMasterNodeAddr.empty()) {
             CService addrTest = CService(strMasterNodeAddr);

@@ -49,7 +49,8 @@ void CActiveMasternode::ManageStatus(CConnman& connman)
         }
     }
 
-    if (status != ACTIVE_MASTERNODE_STARTED) {
+    if (status != ACTIVE_MASTERNODE_STARTED)
+    {
         // Set defaults
         status = ACTIVE_MASTERNODE_NOT_CAPABLE;
         notCapableReason = "";
@@ -77,15 +78,12 @@ void CActiveMasternode::ManageStatus(CConnman& connman)
             service = CService(strMasterNodeAddr);
         }
 
-        // The service needs the correct default port to work properly
-        if (!CMasternodeBroadcast::CheckDefaultPort(strMasterNodeAddr, errorMessage, "CActiveMasternode::ManageStatus()"))
-            return;
-
         // Choose coins to use
         CPubKey pubKeyCollateralAddress;
         CKey keyCollateralAddress;
 
-        if (GetMasterNodeVin(vin, pubKeyCollateralAddress, keyCollateralAddress)) {
+        if (GetMasternodeVin(vin, pubKeyCollateralAddress, keyCollateralAddress))
+        {
             COutPoint mnConfirms(vin.prevout.hash, vin.prevout.n);
             if (GetUTXOConfirmations(mnConfirms) < MASTERNODE_MIN_CONFIRMATIONS) {
                 status = ACTIVE_MASTERNODE_INPUT_TOO_NEW;
@@ -225,7 +223,7 @@ bool CActiveMasternode::CreateBroadcast(std::string strService, std::string strK
         return false;
     }
 
-    if (!GetMasterNodeVin(vin, pubKeyCollateralAddress, keyCollateralAddress, strTxHash, strOutputIndex)) {
+    if (!GetMasternodeVin(vin, pubKeyCollateralAddress, keyCollateralAddress, strTxHash, strOutputIndex)) {
         errorMessage = strprintf("Could not allocate vin %s:%s for masternode %s", strTxHash, strOutputIndex, strService);
         LogPrint(BCLog::MASTERNODE, "CActiveMasternode::CreateBroadcast() - %s\n", errorMessage);
         return false;
@@ -264,33 +262,20 @@ bool CActiveMasternode::CreateBroadcast(CTxIn vin, CService service, CKey keyCol
     return true;
 }
 
-bool CActiveMasternode::GetMasterNodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secretKey)
+bool CActiveMasternode::GetMasternodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secretKey)
 {
-    return GetMasterNodeVin(vin, pubkey, secretKey, "", "");
+    return GetMasternodeVin(vin, pubkey, secretKey, "", "");
 }
 
-bool CActiveMasternode::GetMasterNodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secretKey, std::string strTxHash, std::string strOutputIndex)
+bool CActiveMasternode::GetMasternodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secretKey, std::string strTxHash, std::string strOutputIndex)
 {
-    // wait for reindex and/or import to finish
-    if (fImporting || fReindex)
-        return false;
-
-    // Find possible candidates
-    COutput* selectedOutput;
     std::vector<COutput> possibleCoins = SelectCoinsMasternode();
+    COutput* selectedOutput;
 
     // Find the vin
     if (!strTxHash.empty()) {
-        // Let's find it
         uint256 txHash(uint256S(strTxHash));
-        int outputIndex;
-        try {
-            outputIndex = std::stoi(strOutputIndex.c_str());
-        } catch (const std::exception& e) {
-            LogPrint(BCLog::MASTERNODE, "%s: %s on strOutputIndex\n", __func__, e.what());
-            return false;
-        }
-
+        int outputIndex = atoi(strOutputIndex.c_str());
         bool found = false;
         for (COutput& out : possibleCoins) {
             if (out.tx->GetHash() == txHash && out.i == outputIndex) {
@@ -300,7 +285,7 @@ bool CActiveMasternode::GetMasterNodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secr
             }
         }
         if (!found) {
-            LogPrint(BCLog::MASTERNODE, "CActiveMasternode::GetMasterNodeVin - Could not locate valid vin\n");
+            LogPrintf("CActiveMasternode::GetMasternodeVin - Could not locate valid vin\n");
             return false;
         }
     } else {
@@ -308,7 +293,7 @@ bool CActiveMasternode::GetMasterNodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secr
         if (possibleCoins.size() > 0) {
             selectedOutput = &possibleCoins[0];
         } else {
-            LogPrint(BCLog::MASTERNODE, "CActiveMasternode::GetMasterNodeVin - Could not locate specified vin from possible list\n");
+            LogPrintf("CActiveMasternode::GetMasternodeVin - Could not locate specified vin from possible list\n");
             return false;
         }
     }
@@ -322,7 +307,7 @@ bool CActiveMasternode::GetVinFromOutput(COutput out, CTxIn& vin, CPubKey& pubke
 {
     CScript pubScript;
 
-    vin = CTxIn(out.tx->tx->GetHash(), out.i);
+    vin = CTxIn(out.tx->GetHash(), out.i);
     pubScript = out.tx->tx->vout[out.i].scriptPubKey;
 
     CTxDestination address1;

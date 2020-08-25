@@ -108,32 +108,32 @@ void ThreadMasternodePool()
     }
 }
 
-bool GetMasternodeOutpointAndKeys(COutPoint& outpointRet, CPubKey& pubKeyRet, CKey& keyRet, std::string strTxHash, std::string strOutputIndex)
+bool GetMasternodeVinAndKeys(CTxIn& txinRet, CPubKey& pubKeyRet, CKey& keyRet, std::string strTxHash, std::string strOutputIndex)
 {
     std::vector<COutput> vPossibleCoins = activeMasternode.SelectCoinsMasternode();
     if (vPossibleCoins.empty()) {
-        LogPrintf("CWallet::GetMasternodeOutpointAndKeys -- Could not locate any valid masternode vin\n");
+        LogPrintf("CWallet::GetMasternodeVinAndKeys -- Could not locate any valid masternode vin\n");
         return false;
     }
 
     if (strTxHash.empty())
-        return GetOutpointAndKeysFromOutput(vPossibleCoins[0], outpointRet, pubKeyRet, keyRet);
+        return GetVinAndKeysFromOutput(vPossibleCoins[0], txinRet, pubKeyRet, keyRet);
 
     // Find specific vin
     uint256 txHash = uint256S(strTxHash);
     int nOutputIndex = atoi(strOutputIndex.c_str());
 
-    for (auto& out : vPossibleCoins)
+    for (COutput& out : vPossibleCoins)
         if (out.tx->GetHash() == txHash && out.i == nOutputIndex)
-            return GetOutpointAndKeysFromOutput(out, outpointRet, pubKeyRet, keyRet);
+            return GetVinAndKeysFromOutput(out, txinRet, pubKeyRet, keyRet);
 
     return false;
 }
 
-bool GetOutpointAndKeysFromOutput(const COutput& out, COutPoint& outpointRet, CPubKey& pubKeyRet, CKey& keyRet)
+bool GetVinAndKeysFromOutput(COutput out, CTxIn& txinRet, CPubKey& pubKeyRet, CKey& keyRet)
 {
     CScript pubScript;
-    outpointRet = COutPoint(out.tx->GetHash(), out.i);
+    txinRet = CTxIn(out.tx->GetHash(), out.i);
     pubScript = out.tx->tx->vout[out.i].scriptPubKey;
 
     auto m_wallet = GetMainWallet();
@@ -143,12 +143,12 @@ bool GetOutpointAndKeysFromOutput(const COutput& out, COutPoint& outpointRet, CP
     ExtractDestination(pubScript, address1);
     CKeyID keyID = GetKeyForDestination(*spk_man, address1);
     if (keyID.IsNull()) {
-        LogPrintf("CWallet::GetOutpointAndKeysFromOutput -- Address does not refer to a key\n");
+        LogPrintf("CWallet::GetVinAndKeysFromOutput -- Address does not refer to a key\n");
         return false;
     }
 
     if (!spk_man->GetKey(keyID, keyRet)) {
-        LogPrintf("CWallet::GetOutpointAndKeysFromOutput -- Private key for address is not known\n");
+        LogPrintf("CWallet::GetVinAndKeysFromOutput -- Private key for address is not known\n");
         return false;
     }
 

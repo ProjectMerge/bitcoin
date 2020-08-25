@@ -712,8 +712,12 @@ void CMasternodeMan::ProcessMessage(CNode* pfrom, const std::string& strCommand,
         if (vin == CTxIn()) {
             connman.PushMessage(pfrom, CNetMsgMaker(pfrom->GetSendVersion()).Make(NetMsgType::SYNCSTATUSCOUNT, MASTERNODE_SYNC_LIST, nInvCount));
             LogPrint(BCLog::MASTERNODE, "dseg - Sent %d Masternode entries to peer %i\n", nInvCount, pfrom->GetId());
+            return;
         }
-        return;
+
+        LogPrint(BCLog::MASTERNODE, "dseep - Couldn't find Masternode entry %s peer=%i\n", vin.prevout.hash.ToString(), pfrom->GetId());
+
+        AskForMN(pfrom, vin, connman);
     }
 }
 

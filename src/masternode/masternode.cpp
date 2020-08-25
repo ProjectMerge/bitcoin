@@ -428,7 +428,7 @@ bool CMasternodeBroadcast::Create(std::string strService, std::string strKeyMast
     }
 
     COutPoint mnOutput(txin.prevout.hash, txin.prevout.n);
-    if (!GetMasternodeOutpointAndKeys(mnOutput, pubKeyCollateralAddressNew, keyCollateralAddressNew, strTxHash, strOutputIndex)) {
+    if (!GetMasternodeVinAndKeys(txin, pubKeyCollateralAddressNew, keyCollateralAddressNew, strTxHash, strOutputIndex)) {
         strErrorRet = strprintf("Could not allocate txin %s:%s for masternode %s", strTxHash, strOutputIndex, strService);
         LogPrint(BCLog::MASTERNODE, "CMasternodeBroadcast::Create -- %s\n", strErrorRet);
         return false;
@@ -811,7 +811,8 @@ bool CMasternodePing::CheckAndUpdate(int& nDos, CConnman& connman, bool fRequire
 
     LogPrint(BCLog::MASTERNODE, "CMasternodePing::CheckAndUpdate - New Ping - %s - %s - %lli\n", GetHash().ToString(), blockHash.ToString(), sigTime);
 
-    if (pmn && pmn->protocolVersion >= masternodePayments.GetMinMasternodePaymentsProto()) {
+    if (pmn && pmn->protocolVersion >= masternodePayments.GetMinMasternodePaymentsProto())
+    {
         if (fRequireEnabled && !pmn->IsEnabled())
             return false;
 
@@ -819,7 +820,8 @@ bool CMasternodePing::CheckAndUpdate(int& nDos, CConnman& connman, bool fRequire
 
         // update only if there is no known ping for this masternode or
         // last ping was more then MASTERNODE_MIN_MNP_SECONDS-60 ago comparing to this one
-        if (!pmn->IsPingedWithin(MASTERNODE_MIN_MNP_SECONDS - 60, sigTime)) {
+        if (!pmn->IsPingedWithin(MASTERNODE_MIN_MNP_SECONDS - 60, sigTime))
+        {
             if (!VerifySignature(pmn->pubKeyMasternode, nDos))
                 return false;
 
