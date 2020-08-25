@@ -13,7 +13,7 @@
 #include <wallet/coincontrol.h>
 #include <wallet/rpcwallet.h>
 
-int mnConfigTotal{-1};
+int mnConfigTotal { -1 };
 CActiveMasternode activeMasternode;
 
 //
@@ -49,8 +49,7 @@ void CActiveMasternode::ManageStatus(CConnman& connman)
         }
     }
 
-    if (status != ACTIVE_MASTERNODE_STARTED)
-    {
+    if (status != ACTIVE_MASTERNODE_STARTED) {
         // Set defaults
         status = ACTIVE_MASTERNODE_NOT_CAPABLE;
         notCapableReason = "";
@@ -82,8 +81,7 @@ void CActiveMasternode::ManageStatus(CConnman& connman)
         CPubKey pubKeyCollateralAddress;
         CKey keyCollateralAddress;
 
-        if (GetMasternodeVin(vin, pubKeyCollateralAddress, keyCollateralAddress))
-        {
+        if (GetMasternodeVin(vin, pubKeyCollateralAddress, keyCollateralAddress)) {
             COutPoint mnConfirms(vin.prevout.hash, vin.prevout.n);
             if (GetUTXOConfirmations(mnConfirms) < MASTERNODE_MIN_CONFIRMATIONS) {
                 status = ACTIVE_MASTERNODE_INPUT_TOO_NEW;

@@ -16,12 +16,14 @@
 
 #include <boost/lexical_cast.hpp>
 
-CMasternodeDB::CMasternodeDB() {
+CMasternodeDB::CMasternodeDB()
+{
     pathMN = GetDataDir() / "mncache.dat";
     strMagicMessage = "MasternodeCache";
 }
 
-bool CMasternodeDB::Write(const CMasternodeMan& mnodemanToSave) {
+bool CMasternodeDB::Write(const CMasternodeMan& mnodemanToSave)
+{
     int64_t nStart = GetTimeMillis();
 
     CDataStream ssMasternodes(SER_DISK, CLIENT_VERSION);
@@ -33,11 +35,11 @@ bool CMasternodeDB::Write(const CMasternodeMan& mnodemanToSave) {
 
     FILE* file = fsbridge::fopen(pathMN.string().c_str(), "wb");
     CAutoFile fileout(file, SER_DISK, CLIENT_VERSION);
-    if(fileout.IsNull())
+    if (fileout.IsNull())
         return error("%s : Failed to open file %s", __func__, pathMN.string());
     try {
         fileout << ssMasternodes;
-    } catch(const std::exception& e) {
+    } catch (const std::exception& e) {
         return error("%s : Serialize or I/O error - %s", __func__, e.what());
     }
     fileout.fclose();
@@ -48,25 +50,27 @@ bool CMasternodeDB::Write(const CMasternodeMan& mnodemanToSave) {
     return true;
 }
 
-CMasternodeDB::ReadResult CMasternodeDB::Read(CMasternodeMan& mnodemanToLoad, bool fDryRun) {
+CMasternodeDB::ReadResult CMasternodeDB::Read(CMasternodeMan& mnodemanToLoad, bool fDryRun)
+{
     int64_t nStart = GetTimeMillis();
 
     FILE* file = fsbridge::fopen(pathMN.string().c_str(), "rb");
     CAutoFile filein(file, SER_DISK, CLIENT_VERSION);
-    if(filein.IsNull()) {
+    if (filein.IsNull()) {
         error("%s : Failed to open file %s", __func__, pathMN.string());
         return FileError;
     }
     int fileSize = fs::file_size(pathMN);
     int dataSize = fileSize - sizeof(uint256);
-    if(dataSize < 0) dataSize = 0;
+    if (dataSize < 0)
+        dataSize = 0;
     std::vector<unsigned char> vchData;
     vchData.resize(dataSize);
     uint256 hashIn;
     try {
         filein.read((char*)&vchData[0], dataSize);
         filein >> hashIn;
-    } catch(const std::exception& e) {
+    } catch (const std::exception& e) {
         error("%s : Deserialize or I/O error - %s", __func__, e.what());
         return HashReadError;
     }
@@ -74,7 +78,7 @@ CMasternodeDB::ReadResult CMasternodeDB::Read(CMasternodeMan& mnodemanToLoad, bo
 
     CDataStream ssMasternodes(vchData, SER_DISK, CLIENT_VERSION);
     uint256 hashTmp = Hash(ssMasternodes.begin(), ssMasternodes.end());
-    if(hashIn != hashTmp) {
+    if (hashIn != hashTmp) {
         error("%s : Checksum mismatch, data corrupted", __func__);
         return IncorrectHash;
     }
@@ -85,20 +89,20 @@ CMasternodeDB::ReadResult CMasternodeDB::Read(CMasternodeMan& mnodemanToLoad, bo
 
         ssMasternodes >> strMagicMessageTmp;
 
-        if(strMagicMessage != strMagicMessageTmp) {
+        if (strMagicMessage != strMagicMessageTmp) {
             error("%s : Invalid masternode cache magic message", __func__);
             return IncorrectMagicMessage;
         }
 
         ssMasternodes >> MakeSpan(pchMsgTmp);
 
-        if(memcmp(pchMsgTmp, Params().MessageStart(), sizeof(pchMsgTmp))) {
+        if (memcmp(pchMsgTmp, Params().MessageStart(), sizeof(pchMsgTmp))) {
             error("%s : Invalid network magic number", __func__);
             return IncorrectMagicNumber;
         }
 
         ssMasternodes >> mnodemanToLoad;
-    } catch(const std::exception& e) {
+    } catch (const std::exception& e) {
         mnodemanToLoad.Clear();
         error("%s : Deserialize or I/O error - %s", __func__, e.what());
         return IncorrectFormat;
@@ -106,7 +110,7 @@ CMasternodeDB::ReadResult CMasternodeDB::Read(CMasternodeMan& mnodemanToLoad, bo
 
     LogPrint(BCLog::MASTERNODE, "Loaded info from mncache.dat  %dms\n", GetTimeMillis() - nStart);
     LogPrint(BCLog::MASTERNODE, "  %s\n", mnodemanToLoad.ToString());
-    if(!fDryRun) {
+    if (!fDryRun) {
         LogPrint(BCLog::MASTERNODE, "Masternode manager - cleaning....\n");
         mnodemanToLoad.CheckAndRemove(true);
         LogPrint(BCLog::MASTERNODE, "Masternode manager - result:\n");
@@ -116,7 +120,8 @@ CMasternodeDB::ReadResult CMasternodeDB::Read(CMasternodeMan& mnodemanToLoad, bo
     return Ok;
 }
 
-void DumpMasternodes() {
+void DumpMasternodes()
+{
     int64_t nStart = GetTimeMillis();
 
     CMasternodeDB mndb;
@@ -125,11 +130,11 @@ void DumpMasternodes() {
     LogPrint(BCLog::MASTERNODE, "Verifying mncache.dat format...\n");
     CMasternodeDB::ReadResult readResult = mndb.Read(tempMnodeman, true);
 
-    if(readResult == CMasternodeDB::FileError)
+    if (readResult == CMasternodeDB::FileError)
         LogPrint(BCLog::MASTERNODE, "Missing masternode cache file - mncache.dat, will try to recreate\n");
-    else if(readResult != CMasternodeDB::Ok) {
+    else if (readResult != CMasternodeDB::Ok) {
         LogPrint(BCLog::MASTERNODE, "Error reading mncache.dat: ");
-        if(readResult == CMasternodeDB::IncorrectFormat)
+        if (readResult == CMasternodeDB::IncorrectFormat)
             LogPrint(BCLog::MASTERNODE, "magic is ok but data has invalid format, will try to recreate\n");
         else {
             LogPrint(BCLog::MASTERNODE, "file format is unknown or invalid, please fix it manually\n");
@@ -142,12 +147,14 @@ void DumpMasternodes() {
     LogPrint(BCLog::MASTERNODE, "Masternode dump finished  %dms\n", GetTimeMillis() - nStart);
 }
 
-CMasternodePaymentDB::CMasternodePaymentDB() {
+CMasternodePaymentDB::CMasternodePaymentDB()
+{
     pathDB = GetDataDir() / "mnpayments.dat";
     strMagicMessage = "MasternodePayments";
 }
 
-bool CMasternodePaymentDB::Write(const CMasternodePayments& objToSave) {
+bool CMasternodePaymentDB::Write(const CMasternodePayments& objToSave)
+{
     int64_t nStart = GetTimeMillis();
 
     CDataStream ssObj(SER_DISK, CLIENT_VERSION);
@@ -159,12 +166,12 @@ bool CMasternodePaymentDB::Write(const CMasternodePayments& objToSave) {
 
     FILE* file = fsbridge::fopen(pathDB.string().c_str(), "wb");
     CAutoFile fileout(file, SER_DISK, CLIENT_VERSION);
-    if(fileout.IsNull())
+    if (fileout.IsNull())
         return error("%s : Failed to open file %s", __func__, pathDB.string());
 
     try {
         fileout << ssObj;
-    } catch(const std::exception& e) {
+    } catch (const std::exception& e) {
         return error("%s : Serialize or I/O error - %s", __func__, e.what());
     }
     fileout.fclose();
@@ -174,12 +181,13 @@ bool CMasternodePaymentDB::Write(const CMasternodePayments& objToSave) {
     return true;
 }
 
-CMasternodePaymentDB::ReadResult CMasternodePaymentDB::Read(CMasternodePayments& objToLoad, bool fDryRun) {
+CMasternodePaymentDB::ReadResult CMasternodePaymentDB::Read(CMasternodePayments& objToLoad, bool fDryRun)
+{
     int64_t nStart = GetTimeMillis();
 
     FILE* file = fsbridge::fopen(pathDB.string().c_str(), "rb");
     CAutoFile filein(file, SER_DISK, CLIENT_VERSION);
-    if(filein.IsNull()) {
+    if (filein.IsNull()) {
         error("%s : Failed to open file %s", __func__, pathDB.string());
         return FileError;
     }
@@ -187,7 +195,7 @@ CMasternodePaymentDB::ReadResult CMasternodePaymentDB::Read(CMasternodePayments&
     int fileSize = fs::file_size(pathDB);
     int dataSize = fileSize - sizeof(uint256);
 
-    if(dataSize < 0)
+    if (dataSize < 0)
         dataSize = 0;
     std::vector<unsigned char> vchData;
     vchData.resize(dataSize);
@@ -196,7 +204,7 @@ CMasternodePaymentDB::ReadResult CMasternodePaymentDB::Read(CMasternodePayments&
     try {
         filein.read((char*)&vchData[0], dataSize);
         filein >> hashIn;
-    } catch(const std::exception& e) {
+    } catch (const std::exception& e) {
         error("%s : Deserialize or I/O error - %s", __func__, e.what());
         return HashReadError;
     }
@@ -205,7 +213,7 @@ CMasternodePaymentDB::ReadResult CMasternodePaymentDB::Read(CMasternodePayments&
     CDataStream ssObj(vchData, SER_DISK, CLIENT_VERSION);
 
     uint256 hashTmp = Hash(ssObj.begin(), ssObj.end());
-    if(hashIn != hashTmp) {
+    if (hashIn != hashTmp) {
         error("%s : Checksum mismatch, data corrupted", __func__);
         return IncorrectHash;
     }
@@ -216,20 +224,20 @@ CMasternodePaymentDB::ReadResult CMasternodePaymentDB::Read(CMasternodePayments&
 
         ssObj >> strMagicMessageTmp;
 
-        if(strMagicMessage != strMagicMessageTmp) {
+        if (strMagicMessage != strMagicMessageTmp) {
             error("%s : Invalid masternode payement cache magic message", __func__);
             return IncorrectMagicMessage;
         }
 
         ssObj >> MakeSpan(pchMsgTmp);
 
-        if(memcmp(pchMsgTmp, Params().MessageStart(), sizeof(pchMsgTmp))) {
+        if (memcmp(pchMsgTmp, Params().MessageStart(), sizeof(pchMsgTmp))) {
             error("%s : Invalid network magic number", __func__);
             return IncorrectMagicNumber;
         }
 
         ssObj >> objToLoad;
-    } catch(const std::exception& e) {
+    } catch (const std::exception& e) {
         objToLoad.Clear();
         error("%s : Deserialize or I/O error - %s", __func__, e.what());
         return IncorrectFormat;
@@ -237,7 +245,7 @@ CMasternodePaymentDB::ReadResult CMasternodePaymentDB::Read(CMasternodePayments&
 
     LogPrint(BCLog::MASTERNODE, "Loaded info from mnpayments.dat  %dms\n", GetTimeMillis() - nStart);
     LogPrint(BCLog::MASTERNODE, "  %s\n", objToLoad.ToString());
-    if(!fDryRun) {
+    if (!fDryRun) {
         LogPrint(BCLog::MASTERNODE, "Masternode payments manager - cleaning....\n");
         objToLoad.CleanPaymentList();
         LogPrint(BCLog::MASTERNODE, "Masternode payments manager - result:\n");
@@ -247,7 +255,8 @@ CMasternodePaymentDB::ReadResult CMasternodePaymentDB::Read(CMasternodePayments&
     return Ok;
 }
 
-void DumpMasternodePayments() {
+void DumpMasternodePayments()
+{
     int64_t nStart = GetTimeMillis();
 
     CMasternodePaymentDB paymentdb;
@@ -256,11 +265,11 @@ void DumpMasternodePayments() {
     LogPrint(BCLog::MASTERNODE, "Verifying mnpayments.dat format...\n");
     CMasternodePaymentDB::ReadResult readResult = paymentdb.Read(tempPayments, true);
 
-    if(readResult == CMasternodePaymentDB::FileError)
+    if (readResult == CMasternodePaymentDB::FileError)
         LogPrint(BCLog::MASTERNODE, "Missing budgets file - mnpayments.dat, will try to recreate\n");
-    else if(readResult != CMasternodePaymentDB::Ok) {
+    else if (readResult != CMasternodePaymentDB::Ok) {
         LogPrint(BCLog::MASTERNODE, "Error reading mnpayments.dat: ");
-        if(readResult == CMasternodePaymentDB::IncorrectFormat)
+        if (readResult == CMasternodePaymentDB::IncorrectFormat)
             LogPrint(BCLog::MASTERNODE, "magic is ok but data has invalid format, will try to recreate\n");
         else {
             LogPrint(BCLog::MASTERNODE, "file format is unknown or invalid, please fix it manually\n");
@@ -272,4 +281,3 @@ void DumpMasternodePayments() {
 
     LogPrint(BCLog::MASTERNODE, "Budget dump finished  %dms\n", GetTimeMillis() - nStart);
 }
-

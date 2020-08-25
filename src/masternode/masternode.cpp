@@ -698,10 +698,10 @@ bool CMasternodeBroadcast::VerifySignature()
 
     bool result = false;
     for (int i = 0; i < 2; i++) {
-       if (masternodeSigner.VerifyMessage(pubKeyCollateralAddress, sig, i ? GetNewStrMessage() : GetOldStrMessage(), errorMessage)) {
-           result = true;
-           continue;
-       }
+        if (masternodeSigner.VerifyMessage(pubKeyCollateralAddress, sig, i ? GetNewStrMessage() : GetOldStrMessage(), errorMessage)) {
+            result = true;
+            continue;
+        }
     }
 
     if (!result)
@@ -721,7 +721,7 @@ std::string CMasternodeBroadcast::GetOldStrMessage()
     return strMessage;
 }
 
-std:: string CMasternodeBroadcast::GetNewStrMessage()
+std::string CMasternodeBroadcast::GetNewStrMessage()
 {
     std::string strMessage;
 
@@ -811,8 +811,7 @@ bool CMasternodePing::CheckAndUpdate(int& nDos, CConnman& connman, bool fRequire
 
     LogPrint(BCLog::MASTERNODE, "CMasternodePing::CheckAndUpdate - New Ping - %s - %s - %lli\n", GetHash().ToString(), blockHash.ToString(), sigTime);
 
-    if (pmn && pmn->protocolVersion >= masternodePayments.GetMinMasternodePaymentsProto())
-    {
+    if (pmn && pmn->protocolVersion >= masternodePayments.GetMinMasternodePaymentsProto()) {
         if (fRequireEnabled && !pmn->IsEnabled())
             return false;
 
@@ -820,8 +819,7 @@ bool CMasternodePing::CheckAndUpdate(int& nDos, CConnman& connman, bool fRequire
 
         // update only if there is no known ping for this masternode or
         // last ping was more then MASTERNODE_MIN_MNP_SECONDS-60 ago comparing to this one
-        if (!pmn->IsPingedWithin(MASTERNODE_MIN_MNP_SECONDS - 60, sigTime))
-        {
+        if (!pmn->IsPingedWithin(MASTERNODE_MIN_MNP_SECONDS - 60, sigTime)) {
             if (!VerifySignature(pmn->pubKeyMasternode, nDos))
                 return false;
 

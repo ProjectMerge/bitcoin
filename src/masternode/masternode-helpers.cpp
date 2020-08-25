@@ -83,16 +83,17 @@ bool CMasternodeSigner::VerifyMessage(CPubKey pubkey, std::vector<unsigned char>
 
 void ThreadMasternodePool()
 {
-    if (ShutdownRequested()) return;
-    if (::ChainstateActive().IsInitialBlockDownload()) return;
+    if (ShutdownRequested())
+        return;
+    if (::ChainstateActive().IsInitialBlockDownload())
+        return;
 
     static unsigned int c = 0;
 
     // try to sync from all available nodes, one step at a time
     masternodeSync.Process(*g_rpc_node->connman);
 
-    if (masternodeSync.IsBlockchainSynced())
-    {
+    if (masternodeSync.IsBlockchainSynced()) {
         c++;
 
         // check if we should activate or ping every few minutes,
@@ -155,4 +156,3 @@ bool GetVinAndKeysFromOutput(COutput out, CTxIn& txinRet, CPubKey& pubKeyRet, CK
     pubKeyRet = keyRet.GetPubKey();
     return true;
 }
-
