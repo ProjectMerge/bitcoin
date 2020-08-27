@@ -434,10 +434,6 @@ bool CMasternodeBroadcast::Create(std::string strService, std::string strKeyMast
         return false;
     }
 
-    // The service needs the correct default port to work properly
-    if (!CheckDefaultPort(strService, strErrorRet, "CMasternodeBroadcast::Create"))
-        return false;
-
     return Create(txin, CService(strService), keyCollateralAddressNew, pubKeyCollateralAddressNew, keyMasternodeNew, pubKeyMasternodeNew, strErrorRet, mnbRet);
 }
 
@@ -469,21 +465,6 @@ bool CMasternodeBroadcast::Create(CTxIn txin, CService service, CKey keyCollater
         strErrorRet = strprintf("Failed to sign broadcast, masternode=%s", txin.prevout.hash.ToString());
         LogPrint(BCLog::MASTERNODE, "CMasternodeBroadcast::Create -- %s\n", strErrorRet);
         mnbRet = CMasternodeBroadcast();
-        return false;
-    }
-
-    return true;
-}
-
-bool CMasternodeBroadcast::CheckDefaultPort(std::string strService, std::string& strErrorRet, std::string strContext)
-{
-    CService service = CService(strService);
-    int nDefaultPort = Params().GetDefaultPort();
-
-    if (service.GetPort() != nDefaultPort) {
-        strErrorRet = strprintf("Invalid port %u for masternode %s, only %d is supported on %s-net.",
-            service.GetPort(), strService, nDefaultPort, Params().NetworkIDString());
-        LogPrint(BCLog::MASTERNODE, "%s - %s\n", strContext, strErrorRet);
         return false;
     }
 

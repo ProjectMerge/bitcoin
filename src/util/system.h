@@ -41,7 +41,7 @@
 int64_t GetStartupTime();
 
 extern bool fMasternode;
-extern bool fLiteMode;
+extern int mnConfigTotal;
 extern std::string strMasterNodeAddr;
 extern std::string strMasterNodePrivKey;
 extern const char * const BITCOIN_CONF_FILENAME;

@@ -20,11 +20,6 @@
 #define ACTIVE_MASTERNODE_NOT_CAPABLE 3
 #define ACTIVE_MASTERNODE_STARTED 4
 
-extern int mnConfigTotal;
-
-class CActiveMasternode;
-extern CActiveMasternode activeMasternode;
-
 // Responsible for activating the Masternode and pinging the network
 class CActiveMasternode {
 private:
@@ -39,9 +34,6 @@ private:
 
     /// Get input that can be used for the Masternode
     bool GetMasternodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secretKey, std::string strTxHash, std::string strOutputIndex);
-
-    /// Get input that can be used for the Masternode
-    bool GetVinFromOutput(COutput out, CTxIn& vin, CPubKey& pubkey, CKey& secretKey);
 
 public:
     // Initialized by init.cpp
@@ -69,7 +61,6 @@ public:
 
     /// Get input that can be used for the Masternode
     bool GetMasternodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secretKey);
-    std::vector<COutput> SelectCoinsMasternode();
 
     /// Enable cold wallet mode (run a Masternode with no funds)
     bool EnableHotColdMasterNode(CTxIn& vin, CService& addr);

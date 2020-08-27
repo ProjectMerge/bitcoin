@@ -71,8 +71,8 @@
 // Application startup time (used for uptime calculation)
 const int64_t nStartupTime = GetTime();
 
+int mnConfigTotal{-1};
 bool fMasternode = false;
-bool fLiteMode = false;
 std::string strMasterNodeAddr = "";
 std::string strMasterNodePrivKey = "";
 const char * const BITCOIN_CONF_FILENAME = "merge.conf";
