@@ -1814,13 +1814,14 @@ bool AppInitMain(NodeContext& node)
             }
         }
 
-        std::string strMasterNodePrivKey = gArgs.GetArg("-masternodeprivkey", "");
+        strMasterNodePrivKey = gArgs.GetArg("-masternodeprivkey", "");
         if(!strMasterNodePrivKey.empty())
         {
             CKey key;
             CPubKey pubkey;
             if(!masternodeSigner.GetKeysFromSecret(strMasterNodePrivKey, key, pubkey))
-               return InitError("Invalid masternodeprivkey. Please see documenation.");
+               return InitError("Invalid masternodeprivkey. Please see documentation.");
+            activeMasternode.pubKeyMasternode = pubkey;
             LogPrint(BCLog::MASTERNODE, "  pubKeyMasternode: %s\n", activeMasternode.pubKeyMasternode.GetID().ToString());
         } else {
             return InitError("You must specify a masternodeprivkey in the configuration. Please see documentation for help.\n");

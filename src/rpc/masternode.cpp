@@ -410,7 +410,7 @@ UniValue getmasternodeoutputs(const JSONRPCRequest& request)
             + HelpExampleCli("getmasternodeoutputs", "") + HelpExampleRpc("getmasternodeoutputs", ""));
 
     // Find possible candidates
-    std::vector<COutput> possibleCoins = activeMasternode.SelectCoinsMasternode();
+    std::vector<COutput> possibleCoins = SelectCoinsMasternode();
 
     UniValue ret(UniValue::VARR);
     for (COutput& out : possibleCoins) {
@@ -514,7 +514,7 @@ UniValue getmasternodestatus(const JSONRPCRequest& request)
 
     if (pmn) {
         UniValue mnObj(UniValue::VOBJ);
-        mnObj.pushKV("vin", activeMasternode.vin.ToString());
+        mnObj.pushKV("txid", activeMasternode.vin.prevout.hash.ToString());
         mnObj.pushKV("outputidx", (uint64_t)activeMasternode.vin.prevout.n);
         mnObj.pushKV("netaddr", activeMasternode.service.ToString());
         mnObj.pushKV("addr", EncodeDestination(PKHash(pmn->pubKeyCollateralAddress)));

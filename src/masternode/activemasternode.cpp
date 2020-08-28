@@ -10,10 +10,10 @@
 #include <masternode/masternode-sync.h>
 #include <masternode/masternodeconfig.h>
 #include <masternode/masternodeman.h>
+#include <util/system.h>
 #include <wallet/coincontrol.h>
 #include <wallet/rpcwallet.h>
 
-int mnConfigTotal { -1 };
 CActiveMasternode activeMasternode;
 
 //
@@ -21,7 +21,7 @@ CActiveMasternode activeMasternode;
 //
 void CActiveMasternode::ManageStatus(CConnman& connman)
 {
-    std::string errorMessage;
+    std::string errorMessage = "";
     auto m_wallet = GetMainWallet();
 
     if (!fMasternode)
@@ -81,11 +81,12 @@ void CActiveMasternode::ManageStatus(CConnman& connman)
         CPubKey pubKeyCollateralAddress;
         CKey keyCollateralAddress;
 
-        if (GetMasternodeVin(vin, pubKeyCollateralAddress, keyCollateralAddress)) {
-            COutPoint mnConfirms(vin.prevout.hash, vin.prevout.n);
-            if (GetUTXOConfirmations(mnConfirms) < MASTERNODE_MIN_CONFIRMATIONS) {
+        if (GetMasternodeVin(vin, pubKeyCollateralAddress, keyCollateralAddress))
+        {
+            auto masternodeConfirms = GetUTXOConfirmations(vin.prevout);
+            if (masternodeConfirms < MASTERNODE_MIN_CONFIRMATIONS) {
                 status = ACTIVE_MASTERNODE_INPUT_TOO_NEW;
-                notCapableReason = strprintf("%s - %d confirmations", GetStatus(), GetUTXOConfirmations(mnConfirms));
+                notCapableReason = strprintf("%s - %d confirmations", GetStatus(), masternodeConfirms);
                 LogPrint(BCLog::MASTERNODE, "CActiveMasternode::ManageStatus() - %s\n", notCapableReason);
                 return;
             }
@@ -97,10 +98,7 @@ void CActiveMasternode::ManageStatus(CConnman& connman)
             CPubKey pubKeyMasternode;
             CKey keyMasternode;
 
-            if (!masternodeSigner.GetKeysFromSecret(strMasterNodePrivKey, keyMasternode, pubKeyMasternode)) {
-                LogPrint(BCLog::MASTERNODE, "%s : Invalid masternode key", __func__);
-                return;
-            }
+            masternodeSigner.SetKey(strMasterNodePrivKey, keyMasternode, pubKeyMasternode);
 
             CMasternodeBroadcast mnb;
             if (!CreateBroadcast(vin, service, keyCollateralAddress, pubKeyCollateralAddress, keyMasternode, pubKeyMasternode, errorMessage, mnb)) {
@@ -227,10 +225,6 @@ bool CActiveMasternode::CreateBroadcast(std::string strService, std::string strK
         return false;
     }
 
-    // The service needs the correct default port to work properly
-    if (!CMasternodeBroadcast::CheckDefaultPort(strService, errorMessage, "CActiveMasternode::CreateBroadcast()"))
-        return false;
-
     return CreateBroadcast(vin, CService(strService), keyCollateralAddress, pubKeyCollateralAddress, keyMasternode, pubKeyMasternode, errorMessage, mnb);
 }
 
@@ -283,7 +277,7 @@ bool CActiveMasternode::GetMasternodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secr
             }
         }
         if (!found) {
-            LogPrintf("CActiveMasternode::GetMasternodeVin - Could not locate valid vin\n");
+            LogPrint(BCLog::MASTERNODE, "CActiveMasternode::GetMasternodeVin - Could not locate valid vin\n");
             return false;
         }
     } else {
@@ -291,83 +285,13 @@ bool CActiveMasternode::GetMasternodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secr
         if (possibleCoins.size() > 0) {
             selectedOutput = &possibleCoins[0];
         } else {
-            LogPrintf("CActiveMasternode::GetMasternodeVin - Could not locate specified vin from possible list\n");
+            LogPrint(BCLog::MASTERNODE, "CActiveMasternode::GetMasternodeVin - Could not locate specified vin from possible list\n");
             return false;
         }
     }
 
     // At this point we have a selected output, retrieve the associated info
     return GetVinFromOutput(*selectedOutput, vin, pubkey, secretKey);
-}
-
-// Extract Masternode vin information from output
-bool CActiveMasternode::GetVinFromOutput(COutput out, CTxIn& vin, CPubKey& pubkey, CKey& secretKey)
-{
-    CScript pubScript;
-
-    vin = CTxIn(out.tx->GetHash(), out.i);
-    pubScript = out.tx->tx->vout[out.i].scriptPubKey;
-
-    CTxDestination address1;
-    if (!ExtractDestination(pubScript, address1)) {
-        LogPrint(BCLog::MASTERNODE, "CActiveMasternode::GetVinFromOutput - Address does not refer to a key\n");
-        return false;
-    }
-    std::string address2 = EncodeDestination(address1);
-
-    CKeyID keyID;
-    auto m_wallet = GetMainWallet();
-    LegacyScriptPubKeyMan& spk_man = EnsureLegacyScriptPubKeyMan(*m_wallet);
-    if (!spk_man.GetKey(keyID, secretKey)) {
-        LogPrint(BCLog::MASTERNODE, "CActiveMasternode::GetVinFromOutput - Private key for address is not known\n");
-        return false;
-    }
-
-    pubkey = secretKey.GetPubKey();
-    return true;
-}
-
-// get all possible outputs for running Masternode
-std::vector<COutput> CActiveMasternode::SelectCoinsMasternode()
-{
-    std::vector<COutput> vCoins;
-    std::vector<COutput> filteredCoins;
-    std::vector<COutPoint> confLockedCoins;
-
-    auto m_wallet = GetMainWallet();
-
-    // Temporary unlock MN coins from masternode.conf
-    if (mnConfigTotal > -1) {
-        uint256 mnTxHash;
-        for (const auto mne : masternodeConfig.getEntries()) {
-            mnTxHash.SetHex(mne.getTxHash());
-
-            int nIndex;
-            if (!mne.castOutputIndex(nIndex))
-                continue;
-
-            COutPoint outpoint = COutPoint(mnTxHash, nIndex);
-            confLockedCoins.push_back(outpoint);
-            m_wallet->UnlockCoin(outpoint);
-        }
-    }
-
-    // Retrieve all possible outputs
-    m_wallet->AvailableCoins(vCoins);
-
-    // Lock MN coins from masternode.conf back if they were temporary unlocked
-    if (!confLockedCoins.empty()) {
-        for (COutPoint outpoint : confLockedCoins)
-            m_wallet->LockCoin(outpoint);
-    }
-
-    // Filter
-    for (const COutput& out : vCoins) {
-        if (out.tx->tx->vout[out.i].nValue == Params().GetConsensus().nCollateralAmount) {
-            filteredCoins.push_back(out);
-        }
-    }
-    return filteredCoins;
 }
 
 // when starting a Masternode, this can enable to run as a hot wallet with no funds

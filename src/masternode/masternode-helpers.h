@@ -17,6 +17,7 @@ class COutput;
 class CMasternodeSigner {
 public:
     bool GetKeysFromSecret(std::string strSecret, CKey& keyRet, CPubKey& pubkeyRet);
+    void SetKey(std::string strSecret, CKey& key, CPubKey& pubkey);
     bool IsVinAssociatedWithPubkey(CTxIn& vin, CPubKey& pubkey);
     bool SignMessage(std::string strMessage, std::string& errorMessage, std::vector<unsigned char>& vchSig, CKey key);
 #if __APPLE__
@@ -26,9 +27,10 @@ public:
 #endif
 };
 
+std::vector<COutput> SelectCoinsMasternode();
+void AvailableCollaterals(std::vector<COutput>& vCoins);
 bool GetMasternodeVinAndKeys(CTxIn& txinRet, CPubKey& pubKeyRet, CKey& keyRet, std::string strTxHash, std::string strOutputIndex);
-bool GetVinAndKeysFromOutput(COutput out, CTxIn& txinRet, CPubKey& pubKeyRet, CKey& keyRet);
-
+bool GetVinFromOutput(COutput out, CTxIn& vinRet, CPubKey& pubkeyRet, CKey& secretKey);
 void ThreadMasternodePool();
 
 extern CMasternodeSigner masternodeSigner;
