@@ -24,6 +24,8 @@ BITCOIN_INCLUDES=-I$(builddir) $(BDB_CPPFLAGS) $(BOOST_CPPFLAGS) $(LEVELDB_CPPFL
 BITCOIN_INCLUDES += -I$(srcdir)/secp256k1/include
 BITCOIN_INCLUDES += $(UNIVALUE_CFLAGS)
 
+BLS_LIBS=-lchiabls -lgmp
+
 LIBBITCOIN_SERVER=libmerge_server.a
 LIBBITCOIN_COMMON=libmerge_common.a
 LIBBITCOIN_CONSENSUS=libmerge_consensus.a
@@ -130,6 +132,15 @@ BITCOIN_CORE_H = \
   core_io.h \
   core_memusage.h \
   cuckoocache.h \
+  ctpl.h \
+  cxxtimer.hpp \
+  evo/cbtx.h \
+  evo/deterministicmns.h \
+  evo/evodb.h \
+  evo/mnauth.h \
+  evo/providertx.h \
+  evo/simplifiedmns.h \
+  evo/specialtx.h \
   exceptions.h \
   flat-database.h \
   flatfile.h \
@@ -149,6 +160,19 @@ BITCOIN_CORE_H = \
   key_io.h \
   dbwrapper.h \
   limitedmap.h \
+  llmq/quorums.h \
+  llmq/quorums_blockprocessor.h \
+  llmq/quorums_commitment.h \
+  llmq/quorums_chainlocks.h \
+  llmq/quorums_debug.h \
+  llmq/quorums_dkgsessionhandler.h \
+  llmq/quorums_dkgsessionmgr.h \
+  llmq/quorums_dkgsession.h \
+  llmq/quorums_init.h \
+  llmq/quorums_instantsend.h \
+  llmq/quorums_signing.h \
+  llmq/quorums_signing_shares.h \
+  llmq/quorums_utils.h \
   masternode/activemasternode.h \
   masternode/masternode.h \
   masternode/masternode-payments.h \
@@ -295,6 +319,13 @@ libmerge_server_a_SOURCES = \
   blocksignature.cpp \
   chain.cpp \
   consensus/tx_verify.cpp \
+  evo/cbtx.cpp \
+  evo/deterministicmns.cpp \
+  evo/evodb.cpp \
+  evo/mnauth.cpp \
+  evo/providertx.cpp \
+  evo/simplifiedmns.cpp \
+  evo/specialtx.cpp \
   exceptions.cpp \
   flatfile.cpp \
   httprpc.cpp \
@@ -306,6 +337,19 @@ libmerge_server_a_SOURCES = \
   interfaces/node.cpp \
   init.cpp \
   dbwrapper.cpp \
+  llmq/quorums.cpp \
+  llmq/quorums_blockprocessor.cpp \
+  llmq/quorums_commitment.cpp \
+  llmq/quorums_chainlocks.cpp \
+  llmq/quorums_debug.cpp \
+  llmq/quorums_dkgsessionhandler.cpp \
+  llmq/quorums_dkgsessionmgr.cpp \
+  llmq/quorums_dkgsession.cpp \
+  llmq/quorums_init.cpp \
+  llmq/quorums_instantsend.cpp \
+  llmq/quorums_signing.cpp \
+  llmq/quorums_signing_shares.cpp \
+  llmq/quorums_utils.cpp \
   masternode/activemasternode.cpp \
   masternode/masternode.cpp \
   masternode/masternode-payments.cpp \
@@ -339,6 +383,8 @@ libmerge_server_a_SOURCES = \
   rpc/misc.cpp \
   rpc/net.cpp \
   rpc/rawtransaction.cpp \
+  rpc/rpcevo.cpp \
+  rpc/rpcquorums.cpp \
   rpc/server.cpp \
   rpc/staking.cpp \
   script/sigcache.cpp \
@@ -468,6 +514,8 @@ libmerge_consensus_a_SOURCES = \
   amount.h \
   arith_uint256.cpp \
   arith_uint256.h \
+  bls/bls.cpp \
+  bls/bls.h \
   consensus/merkle.cpp \
   consensus/merkle.h \
   consensus/params.h \
@@ -539,6 +587,11 @@ libmerge_common_a_SOURCES = \
 libmerge_util_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 libmerge_util_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libmerge_util_a_SOURCES = \
+  bls/bls_batchverifier.h \
+  bls/bls_ies.cpp \
+  bls/bls_ies.h \
+  bls/bls_worker.cpp \
+  bls/bls_worker.h \
   support/lockedpool.cpp \
   chainparamsbase.cpp \
   clientversion.cpp \
@@ -615,7 +668,7 @@ merged_LDADD = \
   $(LIBMEMENV) \
   $(LIBSECP256K1)
 
-merged_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS)
+merged_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS) $(BLS_LIBS)
 
 # merge-cli binary #
 merge_cli_SOURCES = bitcoin-cli.cpp
@@ -633,7 +686,7 @@ merge_cli_LDADD = \
   $(LIBBITCOIN_UTIL) \
   $(LIBBITCOIN_CRYPTO)
 
-merge_cli_LDADD += $(BOOST_LIBS) $(EVENT_LIBS)
+merge_cli_LDADD += $(BOOST_LIBS) $(EVENT_LIBS) $(BLS_LIBS)
 #
 
 # merge-tx binary #
@@ -654,7 +707,7 @@ merge_tx_LDADD = \
   $(LIBBITCOIN_CRYPTO) \
   $(LIBSECP256K1)
 
-merge_tx_LDADD += $(BOOST_LIBS)
+merge_tx_LDADD += $(BOOST_LIBS) $(BLS_LIBS)
 #
 
 # merge-wallet binary #
@@ -694,7 +747,7 @@ if GLIBC_BACK_COMPAT
 endif
 
 libmergeconsensus_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS)
-libmergeconsensus_la_LIBADD = $(LIBSECP256K1)
+libmergeconsensus_la_LIBADD = $(LIBSECP256K1) $(BLS_LIBS)
 libmergeconsensus_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(builddir)/obj -I$(srcdir)/secp256k1/include -DBUILD_BITCOIN_INTERNAL
 libmergeconsensus_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 
@@ -724,7 +777,10 @@ CLEANFILES += wallet/test/*.gcda wallet/test/*.gcno
 CLEANFILES += zmq/*.gcda zmq/*.gcno
 CLEANFILES += obj/build.h
 
+IMMER_DIST = immer
+
 EXTRA_DIST = $(CTAES_DIST)
+EXTRA_DIST += $(IMMER_DIST)
 
 
 config/bitcoin-config.h: config/stamp-h1
