@@ -32,6 +32,8 @@
 #include <wallet/walletdb.h>
 #include <wallet/walletutil.h>
 
+#include <llmq/quorums_chainlocks.h>
+
 #include <stdint.h>
 
 #include <univalue.h>

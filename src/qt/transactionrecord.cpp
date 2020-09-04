@@ -9,6 +9,7 @@
 #include <key_io.h>
 #include <util/strencodings.h>
 #include <wallet/ismine.h>
+#include <wallet/wallet.h>
 
 #include <stdint.h>
 

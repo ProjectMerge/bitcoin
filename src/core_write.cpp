@@ -15,6 +15,11 @@
 #include <util/system.h>
 #include <util/strencodings.h>
 
+#include <evo/cbtx.h>
+#include <evo/providertx.h>
+#include <evo/specialtx.h>
+#include <llmq/quorums_commitment.h>
+
 UniValue ValueFromAmount(const CAmount& amount)
 {
     bool sign = amount < 0;

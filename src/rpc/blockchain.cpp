@@ -35,6 +35,11 @@
 #include <validationinterface.h>
 #include <warnings.h>
 
+#include <evo/specialtx.h>
+#include <evo/cbtx.h>
+
+#include <llmq/quorums_chainlocks.h>
+
 #include <stdint.h>
 
 #include <univalue.h>

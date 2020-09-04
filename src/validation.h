@@ -116,6 +116,8 @@ static const char* const DEFAULT_BLOCKFILTERINDEX = "0";
 static const unsigned int DEFAULT_BANSCORE_THRESHOLD = 100;
 /** Default for -persistmempool */
 static const bool DEFAULT_PERSIST_MEMPOOL = true;
+/** Default for -syncmempool */
+static const bool DEFAULT_SYNC_MEMPOOL = true;
 /** Default for using fee filter */
 static const bool DEFAULT_FEEFILTER = true;
 
@@ -140,6 +142,7 @@ extern RecursiveMutex cs_main;
 extern CBlockPolicyEstimator feeEstimator;
 extern CTxMemPool mempool;
 typedef std::unordered_map<uint256, CBlockIndex*, BlockHasher> BlockMap;
+typedef std::unordered_multimap<uint256, CBlockIndex*, BlockHasher> PrevBlockMap;
 extern std::map<unsigned int, unsigned int> mapHashedBlocks;
 extern Mutex g_best_block_mutex;
 extern std::condition_variable g_best_block_cv;
@@ -438,6 +441,7 @@ struct CBlockIndexWorkComparator
 class BlockManager {
 public:
     BlockMap m_block_index GUARDED_BY(cs_main);
+    PrevBlockMap m_prev_block_index GUARDED_BY(cs_main);
 
     /** In order to efficiently track invalidity of headers, we keep the set of
       * blocks which we tried to connect and found to be invalid here (ie which
@@ -482,7 +486,7 @@ public:
     /** Clear all data members. */
     void Unload() EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
-    CBlockIndex* AddToBlockIndex(const CBlockHeader& block) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
+    CBlockIndex* AddToBlockIndex(const CBlockHeader& block, enum BlockStatus nStatus = BLOCK_VALID_TREE) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
     /** Create a new block index entry for a given block hash */
     CBlockIndex* InsertBlockIndex(const uint256& hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
@@ -779,6 +783,9 @@ CChain& ChainActive();
 /** @returns the global block index map. */
 BlockMap& BlockIndex();
 
+/** @returns the global previous block index map */
+PrevBlockMap& PrevBlockIndex();
+
 // Most often ::ChainstateActive() should be used instead of this, but some code
 // may not be able to assume that this has been initialized yet and so must use it
 // directly, e.g. init.cpp.
@@ -816,6 +823,7 @@ inline bool IsBlockPruned(const CBlockIndex* pblockindex)
     return (fHavePruned && !(pblockindex->nStatus & BLOCK_HAVE_DATA) && pblockindex->nTx > 0);
 }
 
+bool GetBlockHash(uint256& hashRet, int nBlockHeight);
 bool GetUTXOCoin(const COutPoint& outpoint, Coin& coin);
 int GetUTXOHeight(const COutPoint& outpoint);
 int GetUTXOConfirmations(const COutPoint& outpoint);

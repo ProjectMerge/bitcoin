@@ -62,6 +62,8 @@ public:
     int GetDefaultPort() const { return nDefaultPort; }
 
     const CBlock& GenesisBlock() const { return genesis; }
+    /** Make miner wait to have peers to avoid wasting work */
+    bool MiningRequiresPeers() const { return fMiningRequiresPeers; }
     /** Default value for -checkmempool and -checkblockindex argument */
     bool DefaultConsistencyChecks() const { return fDefaultConsistencyChecks; }
     /** Policy: Filter transactions that do not match well-defined patterns */
@@ -70,6 +72,8 @@ public:
     bool IsTestChain() const { return m_is_test_chain; }
     /** If this chain allows time to be mocked */
     bool IsMockableChain() const { return m_is_mockable_chain; }
+    /** Require addresses specified with "-externalip" parameter to be routable */
+    bool RequireRoutableExternalIP() const { return fRequireRoutableExternalIP; }
     uint64_t PruneAfterHeight() const { return nPruneAfterHeight; }
     /** Minimum free space (in GB) needed for data directory */
     uint64_t AssumedBlockchainSize() const { return m_assumed_blockchain_size; }
@@ -77,6 +81,12 @@ public:
     uint64_t AssumedChainStateSize() const { return m_assumed_chain_state_size; }
     /** Whether it is possible to mine blocks on demand (no retargeting) */
     bool MineBlocksOnDemand() const { return consensus.fPowNoRetargeting; }
+    /** Allow multiple addresses to be selected from the same network group (e.g. 192.168.x.x) */
+    bool AllowMultipleAddressesFromGroup() const { return fAllowMultipleAddressesFromGroup; }
+    /** Allow nodes with the same address and multiple ports */
+    bool AllowMultiplePorts() const { return fAllowMultiplePorts; }
+    /** How long to wait until we allow retrying of a LLMQ connection  */
+    int LLMQConnectionRetryTimeout() const { return nLLMQConnectionRetryTimeout; }
     /** Return the network string */
     std::string NetworkIDString() const { return strNetworkID; }
     /** Return the list of hostnames to look up for DNS seeds */
@@ -86,8 +96,19 @@ public:
     const std::vector<SeedSpec6>& FixedSeeds() const { return vFixedSeeds; }
     const CCheckpointData& Checkpoints() const { return checkpointData; }
     const ChainTxData& TxData() const { return chainTxData; }
+    void UpdateVersionBitsParameters(Consensus::DeploymentPos d, int64_t nStartTime, int64_t nTimeout, int64_t nWindowSize, int64_t nThreshold);
+    void UpdateDIP3Parameters(int nActivationHeight, int nEnforcementHeight);
+    void UpdateLLMQChainLocks(Consensus::LLMQType llmqType);
+    void UpdateLLMQTestParams(int size, int threshold);
+    int PoolMinParticipants() const { return nPoolMinParticipants; }
+    int PoolNewMinParticipants() const { return nPoolNewMinParticipants; }
+    int PoolMaxParticipants() const { return nPoolMaxParticipants; }
+    int PoolNewMaxParticipants() const { return nPoolNewMaxParticipants; }
     int FulfilledRequestExpireTime() const { return nFulfilledRequestExpireTime; }
     std::string SporkKey() const { return strSporkKey; }
+    const std::vector<std::string>& SporkAddresses() const { return vSporkAddresses; }
+    int MinSporkKeys() const { return nMinSporkKeys; }
+    bool BIP9CheckMasternodesUpgraded() const { return fBIP9CheckMasternodesUpgraded; }
 
 protected:
     CChainParams() {}
@@ -104,14 +125,27 @@ protected:
     std::string strNetworkID;
     CBlock genesis;
     std::vector<SeedSpec6> vFixedSeeds;
+    bool fMiningRequiresPeers;
     bool fDefaultConsistencyChecks;
     bool fRequireStandard;
+    bool fRequireRoutableExternalIP;
+    bool fMineBlocksOnDemand;
+    bool fAllowMultipleAddressesFromGroup;
+    bool fAllowMultiplePorts;
+    int nLLMQConnectionRetryTimeout;
     bool m_is_test_chain;
     bool m_is_mockable_chain;
     CCheckpointData checkpointData;
     ChainTxData chainTxData;
+    int nPoolMinParticipants;
+    int nPoolNewMinParticipants;
+    int nPoolMaxParticipants;
+    int nPoolNewMaxParticipants;
     int nFulfilledRequestExpireTime;
     std::string strSporkKey;
+    std::vector<std::string> vSporkAddresses;
+    int nMinSporkKeys;
+    bool fBIP9CheckMasternodesUpgraded;
 };
 
 /**
@@ -132,5 +166,20 @@ const CChainParams &Params();
  * @throws std::runtime_error when the chain is not supported.
  */
 void SelectParams(const std::string& chain);
+
+/**
+ * Allows modifying the Version Bits regtest parameters.
+ */
+void UpdateVersionBitsParameters(Consensus::DeploymentPos d, int64_t nStartTime, int64_t nTimeout, int64_t nWindowSize, int64_t nThreshold);
+
+/**
+ * Allows modifying the DIP3 activation and enforcement height
+ */
+void UpdateDIP3Parameters(int nActivationHeight, int nEnforcementHeight);
+
+/**
+ * Allows modifying parameters of the test LLMQ
+ */
+void UpdateLLMQTestParams(int size, int threshold);
 
 #endif // BITCOIN_CHAINPARAMS_H

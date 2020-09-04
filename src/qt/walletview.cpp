@@ -20,7 +20,6 @@
 #include <qt/walletmodel.h>
 #include <interfaces/node.h>
 #include <ui_interface.h>
-#include <masternode/masternodeconfig.h>
 
 #include <QAction>
 #include <QActionGroup>

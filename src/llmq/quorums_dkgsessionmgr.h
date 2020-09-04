@@ -11,6 +11,7 @@
 
 #include <ctpl.h>
 
+class CConnman;
 class UniValue;
 
 namespace llmq
@@ -23,10 +24,11 @@ class CDKGSessionManager
 private:
     CDBWrapper& llmqDb;
     CBLSWorker& blsWorker;
+    CConnman& connman;
 
     std::map<Consensus::LLMQType, CDKGSessionHandler> dkgSessionHandlers;
 
-    CCriticalSection contributionsCacheCs;
+    RecursiveMutex contributionsCacheCs;
     struct ContributionsCacheKey {
         Consensus::LLMQType llmqType;
         uint256 quorumHash;
@@ -46,7 +48,7 @@ private:
     std::map<ContributionsCacheKey, ContributionsCacheEntry> contributionsCache;
 
 public:
-    CDKGSessionManager(CDBWrapper& _llmqDb, CBLSWorker& _blsWorker);
+    CDKGSessionManager(CDBWrapper& _llmqDb, CBLSWorker& _blsWorker, CConnman& connman);
     ~CDKGSessionManager();
 
     void StartThreads();

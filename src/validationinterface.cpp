@@ -245,3 +245,23 @@ void CMainSignals::NewPoWValidBlock(const CBlockIndex *pindex, const std::shared
     LOG_EVENT("%s: block hash=%s", __func__, block->GetHash().ToString());
     m_internals->Iterate([&](CValidationInterface& callbacks) { callbacks.NewPoWValidBlock(pindex, block); });
 }
+
+void CMainSignals::NotifyChainLock(const CBlockIndex* pindexChainLock, const llmq::CChainLockSig& clsig) {
+    m_internals->Iterate([&](CValidationInterface& callbacks) { callbacks.NotifyChainLock(pindexChainLock, clsig); });
+}
+
+void CMainSignals::NotifyMasternodeListChanged(bool undo, const CDeterministicMNList& oldMNList, const CDeterministicMNListDiff& diff) {
+     m_internals->Iterate([&](CValidationInterface& callbacks) { callbacks.NotifyMasternodeListChanged(undo, oldMNList, diff); });
+}
+
+void CMainSignals::SyncTransaction(const CTransaction &tx, const CBlockIndex *pindex, int posInBlock) {
+    m_internals->Iterate([&](CValidationInterface& callbacks) { callbacks.SyncTransaction(tx, pindex, posInBlock); });
+}
+
+void CMainSignals::AcceptedBlockHeader(const CBlockIndex * pindexNew) {
+    m_internals->Iterate([&](CValidationInterface& callbacks) { callbacks.AcceptedBlockHeader(pindexNew); });
+}
+
+void CMainSignals::NotifyTransactionLock(const CTransaction &tx) {
+    m_internals->Iterate([&](CValidationInterface& callbacks) { callbacks.NotifyTransactionLock(tx); });
+}

@@ -20,6 +20,9 @@ static const int GETHEADERS_VERSION = 31800;
 //! disconnect from peers older than this proto version
 static const int MIN_PEER_PROTO_VERSION = GETHEADERS_VERSION;
 
+//! minimum proto version of masternode to accept in DKGs
+static const int MIN_MASTERNODE_PROTO_VERSION = 70016;
+
 //! nTime field added to CAddress, starting with this version;
 //! if possible, avoid requesting addresses nodes older than this
 static const int CADDR_TIME_VERSION = 31402;
@@ -41,5 +44,17 @@ static const int SHORT_IDS_BLOCKS_VERSION = 70014;
 
 //! not banning for invalid compact blocks starts with this version
 static const int INVALID_CB_NO_BAN_VERSION = 70015;
+
+//! introduction of DIP3/deterministic masternodes
+static const int DMN_PROTO_VERSION = 70213;
+
+//! introduction of LLMQs
+static const int LLMQS_PROTO_VERSION = 70214;
+
+//! introduction of SENDDSQUEUE
+static const int SENDDSQUEUE_PROTO_VERSION = 70214;
+
+//! protocol version is included in MNAUTH starting with this version
+static const int MNAUTH_NODE_VER_VERSION = 70218;
 
 #endif // BITCOIN_VERSION_H

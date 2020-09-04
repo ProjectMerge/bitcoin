@@ -13,8 +13,19 @@
 #include <masternode/activemasternode.h>
 #include <masternode/masternode-payments.h>
 #include <masternode/masternode-sync.h>
-#include <masternode/masternodeman.h>
+#include <masternode/netfulfilledman.h>
 #include <masternode/spork.h>
+
+#include <evo/deterministicmns.h>
+#include <evo/mnauth.h>
+#include <evo/simplifiedmns.h>
+#include <llmq/quorums_blockprocessor.h>
+#include <llmq/quorums_commitment.h>
+#include <llmq/quorums_chainlocks.h>
+#include <llmq/quorums_dkgsessionmgr.h>
+#include <llmq/quorums_init.h>
+#include <llmq/quorums_signing.h>
+#include <llmq/quorums_signing_shares.h>
 
 #include <memory>
 #include <typeinfo>
@@ -33,21 +44,21 @@ bool AlreadyHaveMasternodeTypes(const CInv& inv, const CTxMemPool& mempool)
     switch (inv.type)
     {
         case MSG_SPORK:
-            return mapSporks.count(inv.hash);
-        case MSG_MASTERNODE_WINNER:
-            if (masternodePayments.mapMasternodePayeeVotes.count(inv.hash)) {
-                masternodeSync.AddedMasternodeWinner(inv.hash);
-                return true;
+            {
+                CSporkMessage spork;
+                return sporkManager.GetSporkByHash(inv.hash, spork);
             }
-            return false;
-        case MSG_MASTERNODE_ANNOUNCE:
-            if (mnodeman.mapSeenMasternodeBroadcast.count(inv.hash)) {
-                masternodeSync.AddedMasternodeList(inv.hash);
-                return true;
-            }
-            return false;
-        case MSG_MASTERNODE_PING:
-            return mnodeman.mapSeenMasternodePing.count(inv.hash);
+        case MSG_QUORUM_FINAL_COMMITMENT:
+            return llmq::quorumBlockProcessor->HasMinableCommitment(inv.hash);
+        case MSG_QUORUM_CONTRIB:
+        case MSG_QUORUM_COMPLAINT:
+        case MSG_QUORUM_JUSTIFICATION:
+        case MSG_QUORUM_PREMATURE_COMMITMENT:
+            return llmq::quorumDKGSessionManager->AlreadyHave(inv);
+        case MSG_QUORUM_RECOVERED_SIG:
+            return llmq::quorumSigningManager->AlreadyHave(inv);
+        case MSG_CLSIG:
+            return llmq::chainLocksHandler->AlreadyHave(inv);
     }
     // Don't know what it is, just say we already got one
     return true;
@@ -58,29 +69,61 @@ void ProcessGetDataMasternodeTypes(CNode* pfrom, const CChainParams& chainparams
     const CNetMsgMaker msgMaker(PROTOCOL_VERSION);
 
     if (!push && inv.type == MSG_SPORK) {
-        if(mapSporks.count(inv.hash)) {
-            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::SPORK, mapSporks[inv.hash]));
+        CSporkMessage spork;
+        if(sporkManager.GetSporkByHash(inv.hash, spork)) {
+            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::SPORK, spork));
             push = true;
         }
     }
 
-    if (!push && inv.type == MSG_MASTERNODE_WINNER) {
-        if (masternodePayments.mapMasternodePayeeVotes.count(inv.hash)) {
-            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::MNWINNER, masternodePayments.mapMasternodePayeeVotes[inv.hash]));
+    if (!push && (inv.type == MSG_QUORUM_FINAL_COMMITMENT)) {
+        llmq::CFinalCommitment o;
+        if (llmq::quorumBlockProcessor->GetMinableCommitmentByHash(inv.hash, o)) {
+            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::QFCOMMITMENT, o));
             push = true;
         }
     }
 
-    if (!push && inv.type == MSG_MASTERNODE_ANNOUNCE) {
-        if(mnodeman.mapSeenMasternodeBroadcast.count(inv.hash)){
-            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::MNBROADCAST, mnodeman.mapSeenMasternodeBroadcast[inv.hash]));
+    if (!push && (inv.type == MSG_QUORUM_CONTRIB)) {
+        llmq::CDKGContribution o;
+        if (llmq::quorumDKGSessionManager->GetContribution(inv.hash, o)) {
+            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::QCONTRIB, o));
+            push = true;
+        }
+    }
+    if (!push && (inv.type == MSG_QUORUM_COMPLAINT)) {
+        llmq::CDKGComplaint o;
+        if (llmq::quorumDKGSessionManager->GetComplaint(inv.hash, o)) {
+            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::QCOMPLAINT, o));
+            push = true;
+        }
+    }
+    if (!push && (inv.type == MSG_QUORUM_JUSTIFICATION)) {
+        llmq::CDKGJustification o;
+        if (llmq::quorumDKGSessionManager->GetJustification(inv.hash, o)) {
+            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::QJUSTIFICATION, o));
+            push = true;
+        }
+    }
+    if (!push && (inv.type == MSG_QUORUM_PREMATURE_COMMITMENT)) {
+        llmq::CDKGPrematureCommitment o;
+        if (llmq::quorumDKGSessionManager->GetPrematureCommitment(inv.hash, o)) {
+            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::QPCOMMITMENT, o));
+            push = true;
+        }
+    }
+    if (!push && (inv.type == MSG_QUORUM_RECOVERED_SIG)) {
+        llmq::CRecoveredSig o;
+        if (llmq::quorumSigningManager->GetRecoveredSigForGetData(inv.hash, o)) {
+            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::QSIGREC, o));
             push = true;
         }
     }
 
-    if (!push && inv.type == MSG_MASTERNODE_PING) {
-        if(mnodeman.mapSeenMasternodePing.count(inv.hash)) {
-            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::MNPING, mnodeman.mapSeenMasternodePing[inv.hash]));
+    if (!push && (inv.type == MSG_CLSIG)) {
+        llmq::CChainLockSig o;
+        if (llmq::chainLocksHandler->GetChainLockByHash(inv.hash, o)) {
+            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::CLSIG, o));
             push = true;
         }
     }
@@ -98,10 +141,14 @@ bool ProcessMessageMasternodeTypes(CNode* pfrom, const std::string& msg_type, CD
     }
 
     if (found) {
-        mnodeman.ProcessMessage(pfrom, msg_type, vRecv, *connman);
-        masternodePayments.ProcessMessageMasternodePayments(pfrom, msg_type, vRecv, *connman);
         sporkManager.ProcessSpork(pfrom, msg_type, vRecv, *connman);
-        masternodeSync.ProcessMessage(pfrom, msg_type, vRecv, *connman);
+        masternodeSync.ProcessMessage(pfrom, msg_type, vRecv);
+        CMNAuth::ProcessMessage(pfrom, msg_type, vRecv, *connman);
+        llmq::quorumBlockProcessor->ProcessMessage(pfrom, msg_type, vRecv, *connman);
+        llmq::quorumDKGSessionManager->ProcessMessage(pfrom, msg_type, vRecv, *connman);
+        llmq::quorumSigSharesManager->ProcessMessage(pfrom, msg_type, vRecv, *connman);
+        llmq::quorumSigningManager->ProcessMessage(pfrom, msg_type, vRecv, *connman);
+        llmq::chainLocksHandler->ProcessMessage(pfrom, msg_type, vRecv, *connman);
     }
 
     return true;

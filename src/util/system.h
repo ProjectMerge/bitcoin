@@ -37,16 +37,27 @@
 
 #include <boost/thread/condition_variable.hpp> // for boost::thread_interrupted
 
+#include <ctpl.h>
+
 // Application startup time (used for uptime calculation)
 int64_t GetStartupTime();
 
+extern bool fDebug;
+extern bool fPrintToConsole;
+extern bool fPrintToDebugLog;
+extern bool fLogTimestamps;
+extern bool fLogTimeMicros;
+extern bool fLogThreadNames;
+
 extern bool fMasternode;
 extern int mnConfigTotal;
+
 extern std::string strMasterNodeAddr;
 extern std::string strMasterNodePrivKey;
 extern const char * const BITCOIN_CONF_FILENAME;
 extern const char * const MASTERNODE_CONF_FILENAME;
 
+void RenameThreadPool(ctpl::thread_pool& tp, const char* baseName);
 void SetupEnvironment();
 bool SetupNetworking();
 
@@ -347,6 +358,9 @@ private:
 
 extern ArgsManager gArgs;
 
+/** Send a string to the log output */
+int LogPrintStr(const std::string &str);
+
 /**
  * @return true if help has been requested via a command-line arg
  */
@@ -378,12 +392,16 @@ std::string HelpMessageOpt(const std::string& option, const std::string& message
  */
 int GetNumCores();
 
+void RenameThread(const char* name);
+std::string GetThreadName();
+
+
 /**
  * .. and a wrapper that just calls func once
  */
-template <typename Callable> void TraceThread(const char* name,  Callable func)
+template <typename Callable> void TraceThread(const std::string name,  Callable func)
 {
-    util::ThreadRename(name);
+    util::ThreadRename(name.c_str());
     try
     {
         LogPrintf("%s thread start\n", name);
@@ -396,11 +414,11 @@ template <typename Callable> void TraceThread(const char* name,  Callable func)
         throw;
     }
     catch (const std::exception& e) {
-        PrintExceptionContinue(&e, name);
+        PrintExceptionContinue(&e, name.c_str());
         throw;
     }
     catch (...) {
-        PrintExceptionContinue(nullptr, name);
+        PrintExceptionContinue(nullptr, name.c_str());
         throw;
     }
 }

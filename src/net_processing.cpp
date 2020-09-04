@@ -29,8 +29,24 @@
 #include <util/system.h>
 #include <util/strencodings.h>
 
+#include <masternode/masternode-payments.h>
+#include <masternode/masternode-sync.h>
+#include <masternode/masternode-meta.h>
+#include <masternode/spork.h>
+
 #include <memory>
 #include <typeinfo>
+
+#include <evo/deterministicmns.h>
+#include <evo/mnauth.h>
+#include <evo/simplifiedmns.h>
+#include <llmq/quorums_blockprocessor.h>
+#include <llmq/quorums_commitment.h>
+#include <llmq/quorums_chainlocks.h>
+#include <llmq/quorums_dkgsessionmgr.h>
+#include <llmq/quorums_init.h>
+#include <llmq/quorums_signing.h>
+#include <llmq/quorums_signing_shares.h>
 
 #if defined(NDEBUG)
 # error "Bitcoin cannot be compiled without assertions."
@@ -689,6 +705,11 @@ static void FindNextBlocksToDownload(NodeId nodeid, unsigned int count, std::vec
 void EraseTxRequest(const uint256& txid) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 {
     g_already_asked_for.erase(txid);
+}
+
+void EraseInvRequest(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
+{
+    EraseTxRequest(inv.hash);
 }
 
 std::chrono::microseconds GetTxRequestTime(const uint256& txid) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
@@ -1922,10 +1943,6 @@ void static ProcessOrphanTx(CConnman* connman, CTxMemPool& mempool, std::set<uin
 
 bool ProcessMessage(CNode* pfrom, const std::string& msg_type, CDataStream& vRecv, int64_t nTimeReceived, const CChainParams& chainparams, CTxMemPool& mempool, CConnman* connman, BanMan* banman, const std::atomic<bool>& interruptMsgProc)
 {
-    //! just snarf these as they are spam
-    if (msg_type == NetMsgType::DSEEP)
-        return true;
-
     LogPrint(BCLog::NET, "received: %s (%u bytes) peer=%d\n", SanitizeString(msg_type), vRecv.size(), pfrom->GetId());
     if (gArgs.IsArgSet("-dropmessagestest") && GetRand(gArgs.GetArg("-dropmessagestest", 0)) == 0)
     {
@@ -2547,7 +2564,7 @@ bool ProcessMessage(CNode* pfrom, const std::string& msg_type, CDataStream& vRec
         CNodeState* nodestate = State(pfrom->GetId());
         nodestate->m_tx_download.m_tx_announced.erase(inv.hash);
         nodestate->m_tx_download.m_tx_in_flight.erase(inv.hash);
-        EraseTxRequest(inv.hash);
+        EraseInvRequest(inv);
 
         std::list<CTransactionRef> lRemovedTxn;
 
@@ -4140,11 +4157,40 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
     return true;
 }
 
+bool IsBanned(NodeId nodeid, BanMan& banman) {
+    LOCK(cs_main);
+    CNodeState *state = State(nodeid);
+    if (state == nullptr)
+        return false;
+    return banman.IsBanned(state->address);
+}
+
+void EraseInvRequest(NodeId from, const uint256& hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main){
+    CNodeState* nodestate = State(from);
+    nodestate->m_tx_download.m_tx_announced.erase(hash);
+    nodestate->m_tx_download.m_tx_in_flight.erase(hash);
+    EraseTxRequest(hash);
+}
+
+void EraseInvRequest(NodeId from, const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main){
+    CNodeState* nodestate = State(from);
+    nodestate->m_tx_download.m_tx_announced.erase(inv.hash);
+    nodestate->m_tx_download.m_tx_in_flight.erase(inv.hash);
+    EraseInvRequest(inv);
+}
+
 void EraseInvRequest(const CNode* pfrom, const uint256& hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main){
     CNodeState* nodestate = State(pfrom->GetId());
     nodestate->m_tx_download.m_tx_announced.erase(hash);
     nodestate->m_tx_download.m_tx_in_flight.erase(hash);
     EraseTxRequest(hash);
+}
+
+void EraseInvRequest(const CNode* pfrom, const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main){
+    CNodeState* nodestate = State(pfrom->GetId());
+    nodestate->m_tx_download.m_tx_announced.erase(inv.hash);
+    nodestate->m_tx_download.m_tx_in_flight.erase(inv.hash);
+    EraseInvRequest(inv);
 }
 
 bool IsAnnouncementAllowed(const CNode* pfrom, const int requestedAnnouncements, const uint256& hash)  EXCLUSIVE_LOCKS_REQUIRED(cs_main)

@@ -20,8 +20,8 @@
 #include "../blake2/blake2-impl.h"
 #include "../blake2/blake2.h"
 
-void fill_block(const block *prev_block, const block *ref_block,
-                block *next_block) {
+void fill_block_local(const block *prev_block, const block *ref_block,
+                      block *next_block) {
     block blockR, block_tmp;
     unsigned i;
 
@@ -78,8 +78,8 @@ void generate_addresses(const argon2_instance_t *instance,
         for (i = 0; i < instance->segment_length; ++i) {
             if (i % ARGON2_ADDRESSES_IN_BLOCK == 0) {
                 input_block.v[6]++;
-                fill_block(&zero_block, &input_block, &address_block);
-                fill_block(&zero_block, &address_block, &address_block);
+                fill_block_local(&zero_block, &input_block, &address_block);
+                fill_block_local(&zero_block, &address_block, &address_block);
             }
 
             pseudo_rands[i] = address_block.v[i % ARGON2_ADDRESSES_IN_BLOCK];
@@ -87,8 +87,8 @@ void generate_addresses(const argon2_instance_t *instance,
     }
 }
 
-void fill_segment(const argon2_instance_t *instance,
-                  argon2_position_t position) {
+void fill_segment_local(const argon2_instance_t *instance,
+                        argon2_position_t position) {
     block *ref_block = NULL, *curr_block = NULL;
     uint64_t pseudo_rand, ref_index, ref_lane;
     uint32_t prev_offset, curr_offset;
@@ -158,14 +158,14 @@ void fill_segment(const argon2_instance_t *instance,
          * lane.
          */
         position.index = i;
-        ref_index = index_alpha(instance, &position, pseudo_rand & 0xFFFFFFFF,
-                                ref_lane == position.lane);
+        ref_index = index_alpha_local(instance, &position, pseudo_rand & 0xFFFFFFFF,
+                                      ref_lane == position.lane);
 
         /* 2 Creating a new block */
         ref_block =
             instance->memory + instance->lane_length * ref_lane + ref_index;
         curr_block = instance->memory + curr_offset;
-        fill_block(instance->memory + prev_offset, ref_block, curr_block);
+        fill_block_local(instance->memory + prev_offset, ref_block, curr_block);
     }
 
     free(pseudo_rands);

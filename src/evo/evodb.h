@@ -32,7 +32,7 @@ public:
 class CEvoDB
 {
 public:
-    CCriticalSection cs;
+    RecursiveMutex cs;
 private:
     CDBWrapper db;
 
@@ -97,6 +97,8 @@ public:
     }
 
     bool CommitRootTransaction();
+
+    bool IsEmpty() { return db.IsEmpty(); }
 
     bool VerifyBestBlock(const uint256& hash);
     void WriteBestBlock(const uint256& hash);

@@ -11,6 +11,8 @@
 
 #include <ctpl.h>
 
+class CConnman;
+
 namespace llmq
 {
 
@@ -39,7 +41,7 @@ public:
     typedef std::pair<NodeId, std::shared_ptr<CDataStream>> BinaryMessage;
 
 private:
-    mutable CCriticalSection cs;
+    mutable RecursiveMutex cs;
     int invType;
     size_t maxMessagesPerNode;
     std::list<BinaryMessage> pendingMessages;
@@ -99,12 +101,13 @@ private:
     friend class CDKGSessionManager;
 
 private:
-    mutable CCriticalSection cs;
+    mutable RecursiveMutex cs;
     std::atomic<bool> stopRequested{false};
 
     const Consensus::LLMQParams& params;
     CBLSWorker& blsWorker;
     CDKGSessionManager& dkgManager;
+    CConnman &connman;
 
     QuorumPhase phase{QuorumPhase_Idle};
     int currentHeight{-1};
@@ -119,7 +122,7 @@ private:
     CDKGPendingMessages pendingPrematureCommitments;
 
 public:
-    CDKGSessionHandler(const Consensus::LLMQParams& _params, CBLSWorker& blsWorker, CDKGSessionManager& _dkgManager);
+    CDKGSessionHandler(const Consensus::LLMQParams& _params, CBLSWorker& blsWorker, CDKGSessionManager& _dkgManager, CConnman& connman);
     ~CDKGSessionHandler();
 
     void UpdatedBlockTip(const CBlockIndex *pindexNew);

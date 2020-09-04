@@ -227,7 +227,7 @@ inline uint256 argon2m_hash(const T1 pbegin, const T1 pend)
     context.threads = 1;
     context.t_cost = 1;
     context.version = ARGON2_VERSION_13;
-    argon2_ctx( &context, Argon2_id );
+    argon2_ctx_local( &context, Argon2_id );
 
     return hash[0];
 }

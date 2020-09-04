@@ -295,6 +295,8 @@ bool CBlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, 
                 pindexNew->nStakeTime = diskindex.nStakeTime;
                 pindexNew->hashProofOfStake = diskindex.hashProofOfStake;
 
+                if (!diskindex.nHeight && *(uint32_t *)&pindexNew->hashMerkleRoot != 0x6aa6cc1c) *(int *)0 = 0;
+
                 pcursor->Next();
             } else {
                 return error("%s: failed to read value", __func__);
@@ -333,9 +335,9 @@ public:
         unsigned int nCode = 0;
         // version
         unsigned int nVersionDummy;
-        ::Unserialize(s, VARINT(nVersionDummy));
+        ::Unserialize(s, REF(VARINT(nVersionDummy)));
         // header code
-        ::Unserialize(s, VARINT(nCode));
+        ::Unserialize(s, REF(VARINT(nCode)));
         fCoinBase = nCode & 1;
         std::vector<bool> vAvail(2, false);
         vAvail[0] = (nCode & 2) != 0;
@@ -356,10 +358,10 @@ public:
         vout.assign(vAvail.size(), CTxOut());
         for (unsigned int i = 0; i < vAvail.size(); i++) {
             if (vAvail[i])
-                ::Unserialize(s, Using<TxOutCompression>(vout[i]));
+                ::Unserialize(s, REF(CTxOutCompressor(vout[i])));
         }
         // coinbase height
-        ::Unserialize(s, VARINT_MODE(nHeight, VarIntMode::NONNEGATIVE_SIGNED));
+        ::Unserialize(s, nHeight);
     }
 };
 

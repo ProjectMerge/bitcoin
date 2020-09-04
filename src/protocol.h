@@ -15,6 +15,7 @@
 #include <uint256.h>
 #include <version.h>
 
+#include <atomic>
 #include <stdint.h>
 #include <string>
 
@@ -234,68 +235,28 @@ extern const char *GETBLOCKTXN;
  * @since protocol version 70014 as described by BIP 152
  */
 extern const char *BLOCKTXN;
-/**
- * The ix message transmits a single SwiftX transaction
- */
-extern const char *IX;
-/**
- * The ixlockvote message is used to reach consensus for SwiftX
- * transaction locks
- */
-extern const char *IXLOCKVOTE;
-/**
- * The spork message is used to send spork values to connected
- * peers
- */
 extern const char *SPORK;
-/**
- * The getsporks message is used to request spork data from connected peers
- */
 extern const char *GETSPORKS;
-/**
- * The mnbroadcast message is used to broadcast masternode startup data to connected peers
- */
-extern const char *MNBROADCAST;
-/**
- * The mnping message is used to ensure a masternode is still active
- */
-extern const char *MNPING;
-/**
- * The mnwinner message is used to relay and distribute consensus for masternode
- * payout ordering
- */
-extern const char *MNWINNER;
-/**
- * The getmnwinners message is used to request winning masternode data from connected peers
- */
-extern const char *GETMNWINNERS;
-/**
- * The budgetproposal message is used to broadcast or relay budget proposal metadata to connected peers
- */
-extern const char *BUDGETPROPOSAL;
-/**
- * The budgetvote message is used to broadcast or relay budget proposal votes to connected peers
- */
-extern const char *BUDGETVOTE;
-/**
- * The budgetvotesync message is used to request budget vote data from connected peers
- */
-extern const char *BUDGETVOTESYNC;
-/**
- * The finalbudget message is used to broadcast or relay finalized budget metadata to connected peers
- */
-extern const char *FINALBUDGET;
-/**
- * The finalbudgetvote message is used to broadcast or relay finalized budget votes to connected peers
- */
-extern const char *FINALBUDGETVOTE;
-/**
- * The syncstatuscount message is used to track the layer 2 syncing process
- */
 extern const char *SYNCSTATUSCOUNT;
-extern const char *DSEG;
-extern const char *DSEEP;
-}; // namespace NetMsgType
+extern const char *GETMNLISTDIFF;
+extern const char *MNLISTDIFF;
+extern const char *QSENDRECSIGS;
+extern const char *QFCOMMITMENT;
+extern const char *QCONTRIB;
+extern const char *QCOMPLAINT;
+extern const char *QJUSTIFICATION;
+extern const char *QPCOMMITMENT;
+extern const char *QWATCH;
+extern const char *QSIGSESANN;
+extern const char *QSIGSHARESINV;
+extern const char *QGETSIGSHARES;
+extern const char *QBSIGSHARES;
+extern const char *QSIGREC;
+extern const char *QSIGSHARE;
+extern const char *CLSIG;
+extern const char *ISLOCK;
+extern const char *MNAUTH;
+};
 
 /* Get a vector of all valid message types (see above) */
 const std::vector<std::string> &getAllNetMessageTypes();
@@ -438,38 +399,51 @@ public:
 
     bool IsKnownType() const;
     bool IsMasterNodeType() const;
-    const char* GetCommand() const;
+    std::string GetCommand() const;
     std::string ToString() const;
 
     int type;
     uint256 hash;
+
+private:
+    const char* GetCommandInternal() const;
 };
 
 /** getdata message type flags */
 const uint32_t MSG_WITNESS_FLAG = 1 << 30;
 const uint32_t MSG_TYPE_MASK    = 0xffffffff >> 2;
 
-enum
-{
+/** getdata / inv message types.
+ * These numbers are defined by the protocol. When adding a new value, be sure
+ * to mention it in the respective BIP.
+ */
+enum GetDataMsg {
+    UNDEFINED = 0,
     MSG_TX = 1,
-    MSG_BLOCK,
-    // Nodes may always request a MSG_FILTERED_BLOCK in a getdata, however,
-    // MSG_FILTERED_BLOCK should not appear in any invs except as a part of getdata.
-    MSG_FILTERED_BLOCK,
-    MSG_TXLOCK_REQUEST,
-    MSG_TXLOCK_VOTE,
-    MSG_SPORK,
-    MSG_MASTERNODE_WINNER,
-    MSG_MASTERNODE_SCANNING_ERROR,
-    MSG_BUDGET_VOTE,
-    MSG_BUDGET_PROPOSAL,
-    MSG_BUDGET_FINALIZED,
-    MSG_BUDGET_FINALIZED_VOTE,
-    MSG_MASTERNODE_QUORUM,
-    MSG_MASTERNODE_ANNOUNCE,
-    MSG_MASTERNODE_PING,
-    MSG_DSTX,
-    MSG_CMPCT_BLOCK, //!< Defined in BIP152
+    MSG_BLOCK = 2,
+    // The following can only occur in getdata. Invs always use TX or BLOCK.
+    MSG_FILTERED_BLOCK = 3,  //!< Defined in BIP37
+    // Dash message types
+    // NOTE: declare non-implmented here, we must keep this enum consistent and backwards compatible
+    MSG_LEGACY_TXLOCK_REQUEST = 4,
+    /* MSG_TXLOCK_VOTE = 5, Legacy InstantSend and not used anymore  */
+    MSG_SPORK = 6,
+    /* 7 - 15 were used in old Dash versions and were mainly budget and MN broadcast/ping related*/
+    MSG_DSTX = 16,
+    /* 19 was used for MSG_MASTERNODE_VERIFY and is not supported anymore */
+    // Nodes may always request a MSG_CMPCT_BLOCK in a getdata, however,
+    // MSG_CMPCT_BLOCK should not appear in any invs except as a part of getdata.
+    MSG_CMPCT_BLOCK = 20, //!< Defined in BIP152
+    MSG_QUORUM_FINAL_COMMITMENT = 21,
+    /* MSG_QUORUM_DUMMY_COMMITMENT = 22, */ // was shortly used on testnet/devnet/regtest
+    MSG_QUORUM_CONTRIB = 23,
+    MSG_QUORUM_COMPLAINT = 24,
+    MSG_QUORUM_JUSTIFICATION = 25,
+    MSG_QUORUM_PREMATURE_COMMITMENT = 26,
+    /* MSG_QUORUM_DEBUG_STATUS = 27, */ // was shortly used on testnet/devnet/regtest
+    MSG_QUORUM_RECOVERED_SIG = 28,
+    MSG_CLSIG = 29,
+    MSG_ISLOCK = 30,
     MSG_WITNESS_BLOCK = MSG_BLOCK | MSG_WITNESS_FLAG, //!< Defined in BIP144
     MSG_WITNESS_TX = MSG_TX | MSG_WITNESS_FLAG,       //!< Defined in BIP144
     MSG_FILTERED_WITNESS_BLOCK = MSG_FILTERED_BLOCK | MSG_WITNESS_FLAG,

@@ -243,7 +243,7 @@ extern "C" {
      * @param  context  Pointer to the Argon2 internal structure
      * @return Error code if smth is wrong, ARGON2_OK otherwise
      */
-    ARGON2_PUBLIC int argon2_ctx(argon2_context *context, argon2_type type);
+    ARGON2_PUBLIC int argon2_ctx_local(argon2_context *context, argon2_type type);
 
     /**
      * Hashes a password with Argon2i, producing an encoded hash
@@ -334,7 +334,7 @@ extern "C" {
 
     /**
      * Verifies a password against an encoded string
-     * Encoded string is restricted as in validate_inputs()
+     * Encoded string is restricted as in validate_inputs_local()
      * @param encoded String encoding parameters, salt, hash
      * @param pwd Pointer to password
      * @pre   Returns ARGON2_OK if successful

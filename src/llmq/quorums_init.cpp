@@ -1,4 +1,5 @@
 // Copyright (c) 2018-2019 The Dash Core developers
+// Copyright (c) 2018-2020 The Merge Core developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -10,7 +11,6 @@
 #include <llmq/quorums_chainlocks.h>
 #include <llmq/quorums_debug.h>
 #include <llmq/quorums_dkgsessionmgr.h>
-#include <llmq/quorums_instantsend.h>
 #include <llmq/quorums_signing.h>
 #include <llmq/quorums_signing_shares.h>
 
@@ -23,25 +23,22 @@ CBLSWorker* blsWorker;
 
 CDBWrapper* llmqDb;
 
-void InitLLMQSystem(CEvoDB& evoDb, bool unitTests, bool fWipe)
+void InitLLMQSystem(CEvoDB& evoDb, CConnman& connman, bool unitTests, bool fWipe)
 {
     llmqDb = new CDBWrapper(unitTests ? "" : (GetDataDir() / "llmq"), 1 << 20, unitTests, fWipe);
     blsWorker = new CBLSWorker();
 
     quorumDKGDebugManager = new CDKGDebugManager();
-    quorumBlockProcessor = new CQuorumBlockProcessor(evoDb);
-    quorumDKGSessionManager = new CDKGSessionManager(*llmqDb, *blsWorker);
-    quorumManager = new CQuorumManager(evoDb, *blsWorker, *quorumDKGSessionManager);
-    quorumSigSharesManager = new CSigSharesManager();
-    quorumSigningManager = new CSigningManager(*llmqDb, unitTests);
-    chainLocksHandler = new CChainLocksHandler();
-    quorumInstantSendManager = new CInstantSendManager(*llmqDb);
+    quorumBlockProcessor = new CQuorumBlockProcessor(evoDb, connman);
+    quorumDKGSessionManager = new CDKGSessionManager(*llmqDb, *blsWorker, connman);
+    quorumManager = new CQuorumManager(evoDb, *blsWorker, *quorumDKGSessionManager, connman);
+    quorumSigSharesManager = new CSigSharesManager(connman);
+    quorumSigningManager = new CSigningManager(*llmqDb, unitTests, connman);
+    chainLocksHandler = new CChainLocksHandler(connman);
 }
 
 void DestroyLLMQSystem()
 {
-    delete quorumInstantSendManager;
-    quorumInstantSendManager = nullptr;
     delete chainLocksHandler;
     chainLocksHandler = nullptr;
     delete quorumSigningManager;
@@ -64,8 +61,6 @@ void DestroyLLMQSystem()
 
 void StartLLMQSystem()
 {
-    quorumBlockProcessor->UpgradeDB();
-
     if (blsWorker) {
         blsWorker->Start();
     }
@@ -79,16 +74,10 @@ void StartLLMQSystem()
     if (chainLocksHandler) {
         chainLocksHandler->Start();
     }
-    if (quorumInstantSendManager) {
-        quorumInstantSendManager->Start();
-    }
 }
 
 void StopLLMQSystem()
 {
-    if (quorumInstantSendManager) {
-        quorumInstantSendManager->Stop();
-    }
     if (chainLocksHandler) {
         chainLocksHandler->Stop();
     }
@@ -108,9 +97,6 @@ void InterruptLLMQSystem()
 {
     if (quorumSigSharesManager) {
         quorumSigSharesManager->InterruptWorkerThread();
-    }
-    if (quorumInstantSendManager) {
-        quorumInstantSendManager->InterruptWorkerThread();
     }
 }
 

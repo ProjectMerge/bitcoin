@@ -241,6 +241,7 @@ class CDKGSession
     friend class CDKGSessionHandler;
     friend class CDKGSessionManager;
     friend class CDKGLogger;
+    friend class CConnman;
 
 private:
     const Consensus::LLMQParams& params;
@@ -248,6 +249,7 @@ private:
     CBLSWorker& blsWorker;
     CBLSWorkerCache cache;
     CDKGSessionManager& dkgManager;
+    CConnman& connman;
 
     const CBlockIndex* pindexQuorum;
 
@@ -271,20 +273,21 @@ private:
     // we expect to only receive a single vvec and contribution per member, but we must also be able to relay
     // conflicting messages as otherwise an attacker might be able to broadcast conflicting (valid+invalid) messages
     // and thus split the quorum. Such members are later removed from the quorum.
-    mutable CCriticalSection invCs;
+    mutable RecursiveMutex invCs;
     std::map<uint256, CDKGContribution> contributions;
     std::map<uint256, CDKGComplaint> complaints;
     std::map<uint256, CDKGJustification> justifications;
     std::map<uint256, CDKGPrematureCommitment> prematureCommitments;
 
+    mutable RecursiveMutex cs_pending;
     std::vector<size_t> pendingContributionVerifications;
 
     // filled by ReceivePrematureCommitment and used by FinalizeCommitments
     std::set<uint256> validCommitments;
 
 public:
-    CDKGSession(const Consensus::LLMQParams& _params, CBLSWorker& _blsWorker, CDKGSessionManager& _dkgManager) :
-        params(_params), blsWorker(_blsWorker), cache(_blsWorker), dkgManager(_dkgManager) {}
+    CDKGSession(const Consensus::LLMQParams& _params, CBLSWorker& _blsWorker, CDKGSessionManager& _dkgManager, CConnman& _connman) :
+        params(_params), blsWorker(_blsWorker), cache(_blsWorker), dkgManager(_dkgManager), connman(_connman) {}
 
     bool Init(const CBlockIndex* pindexQuorum, const std::vector<CDeterministicMNCPtr>& mns, const uint256& _myProTxHash);
 

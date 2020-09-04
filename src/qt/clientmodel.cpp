@@ -8,8 +8,6 @@
 #include <qt/guiconstants.h>
 #include <qt/guiutil.h>
 #include <qt/peertablemodel.h>
-#include <masternode/masternodeman.h>
-#include <masternode/masternode-sync.h>
 #include <clientversion.h>
 #include <interfaces/handler.h>
 #include <interfaces/node.h>
@@ -17,6 +15,9 @@
 #include <netbase.h>
 #include <util/system.h>
 #include <wallet/wallet.h>
+
+
+#include <masternode/masternode-sync.h>
 
 #include <stdint.h>
 
@@ -44,33 +45,12 @@ ClientModel::ClientModel(interfaces::Node& node, OptionsModel *_optionsModel, QO
     connect(pollTimer, &QTimer::timeout, this, &ClientModel::updateTimer);
     pollTimer->start(MODEL_UPDATE_DELAY);
 
-    pollMnTimer = new QTimer(this);
-    connect(pollMnTimer, &QTimer::timeout, this, &ClientModel::updateMnTimer);
-    pollMnTimer->start(MODEL_UPDATE_DELAY * 4);
-
-    QTimer* timer = new QTimer;
-    timer->setInterval(MODEL_UPDATE_DELAY);
-    connect(timer, &QTimer::timeout, [this] {
-        // no locking required at this point
-        // the following calls will acquire the required lock
-        Q_EMIT mempoolSizeChanged(m_node.getMempoolSize(), m_node.getMempoolDynamicUsage());
-        Q_EMIT bytesChanged(m_node.getTotalBytesRecv(), m_node.getTotalBytesSent());
-    });
-    connect(m_thread, &QThread::finished, timer, &QObject::deleteLater);
-    connect(m_thread, &QThread::started, [timer] { timer->start(); });
-    // move timer to thread so that polling doesn't disturb main event loop
-    timer->moveToThread(m_thread);
-    m_thread->start();
-
     subscribeToCoreSignals();
 }
 
 ClientModel::~ClientModel()
 {
     unsubscribeFromCoreSignals();
-
-    m_thread->quit();
-    m_thread->wait();
 }
 
 int ClientModel::getNumConnections(unsigned int flags) const
@@ -87,11 +67,26 @@ int ClientModel::getNumConnections(unsigned int flags) const
     return m_node.getNodeCount(connections);
 }
 
-QString ClientModel::getMasternodeCountString() const
+void ClientModel::setMasternodeList(const CDeterministicMNList& mnList)
 {
-    return tr("Total: %1 (Enabled: %2)")
-            .arg(QString::number((int)mnodeman.size()))
-            .arg(QString::number((int)mnodeman.CountEnabled()));
+    LOCK(cs_mnlinst);
+    if (mnListCached.GetBlockHash() == mnList.GetBlockHash()) {
+        return;
+    }
+    mnListCached = mnList;
+    Q_EMIT masternodeListChanged();
+}
+
+CDeterministicMNList ClientModel::getMasternodeList() const
+{
+    LOCK(cs_mnlinst);
+    return mnListCached;
+}
+
+void ClientModel::refreshMasternodeList()
+{
+    LOCK(cs_mnlinst);
+    setMasternodeList(deterministicMNManager->GetListAtChainTip());
 }
 
 int ClientModel::getHeaderTipHeight() const
@@ -126,16 +121,6 @@ void ClientModel::updateTimer()
 {
     Q_EMIT mempoolSizeChanged(m_node.getMempoolSize(), m_node.getMempoolDynamicUsage());
     Q_EMIT bytesChanged(m_node.getTotalBytesRecv(), m_node.getTotalBytesSent());
-}
-
-void ClientModel::updateMnTimer()
-{
-    QString newMasternodeCountString = getMasternodeCountString();
-
-    if (cachedMasternodeCountString != newMasternodeCountString) {
-        cachedMasternodeCountString = newMasternodeCountString;
-        Q_EMIT strMasternodesChanged(cachedMasternodeCountString);
-    }
 }
 
 void ClientModel::updateNumConnections(int numConnections)
@@ -288,6 +273,11 @@ static void BlockTipChanged(ClientModel *clientmodel, bool initialSync, int heig
     }
 }
 
+static void NotifyMasternodeListChanged(ClientModel *clientmodel, const CDeterministicMNList& newList)
+{
+    clientmodel->setMasternodeList(newList);
+}
+
 static void NotifyAdditionalDataSyncProgressChanged(ClientModel *clientmodel, double nSyncProgress)
 {
     QMetaObject::invokeMethod(clientmodel, "additionalDataSyncProgressChanged", Qt::QueuedConnection,
@@ -304,6 +294,7 @@ void ClientModel::subscribeToCoreSignals()
     m_handler_banned_list_changed = m_node.handleBannedListChanged(std::bind(BannedListChanged, this));
     m_handler_notify_block_tip = m_node.handleNotifyBlockTip(std::bind(BlockTipChanged, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, false));
     m_handler_notify_header_tip = m_node.handleNotifyHeaderTip(std::bind(BlockTipChanged, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, true));
+    m_handler_notify_masternodelist_changed = m_node.handleNotifyMasternodeListChanged(std::bind(NotifyMasternodeListChanged, this, std::placeholders::_1));
     m_handler_notify_additional_data_sync_progress_changed = m_node.handleNotifyAdditionalDataSyncProgressChanged(std::bind(NotifyAdditionalDataSyncProgressChanged, this, std::placeholders::_1));
 }
 

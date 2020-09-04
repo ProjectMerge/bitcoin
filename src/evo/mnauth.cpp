@@ -1,4 +1,5 @@
 // Copyright (c) 2019-2020 The Dash Core developers
+// Copyright (c) 2018-2020 The Merge Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -18,7 +19,7 @@
 
 void CMNAuth::PushMNAUTH(CNode* pnode, CConnman& connman)
 {
-    if (!fMasternodeMode || activeMasternodeInfo.proTxHash.IsNull()) {
+    if (!fMasternode || activeMasternodeInfo.proTxHash.IsNull()) {
         return;
     }
 
@@ -34,15 +35,7 @@ void CMNAuth::PushMNAUTH(CNode* pnode, CConnman& connman)
         // It does not protect against:
         //   node1 -> Eve -> node2
         // This is ok as we only use MNAUTH as a DoS protection and not for sensitive stuff
-        int nOurNodeVersion{PROTOCOL_VERSION};
-        if (Params().NetworkIDString() != CBaseChainParams::MAIN && gArgs.IsArgSet("-pushversion")) {
-            nOurNodeVersion = gArgs.GetArg("-pushversion", PROTOCOL_VERSION);
-        }
-        if (pnode->nVersion < MNAUTH_NODE_VER_VERSION || nOurNodeVersion < MNAUTH_NODE_VER_VERSION) {
-            signHash = ::SerializeHash(std::make_tuple(*activeMasternodeInfo.blsPubKeyOperator, pnode->receivedMNAuthChallenge, pnode->fInbound));
-        } else {
-            signHash = ::SerializeHash(std::make_tuple(*activeMasternodeInfo.blsPubKeyOperator, pnode->receivedMNAuthChallenge, pnode->fInbound, nOurNodeVersion));
-        }
+        signHash = ::SerializeHash(std::make_tuple(*activeMasternodeInfo.blsPubKeyOperator, pnode->receivedMNAuthChallenge, pnode->fInbound));
     }
 
     CMNAuth mnauth;
@@ -148,7 +141,7 @@ void CMNAuth::ProcessMessage(CNode* pnode, const std::string& strCommand, CDataS
             }
 
             if (pnode2->verifiedProRegTxHash == mnauth.proRegTxHash) {
-                if (fMasternodeMode) {
+                if (fMasternode) {
                     auto deterministicOutbound = llmq::CLLMQUtils::DeterministicOutboundConnection(activeMasternodeInfo.proTxHash, mnauth.proRegTxHash);
                     LogPrint(BCLog::NET_NETCONN, "CMNAuth::ProcessMessage -- Masternode %s has already verified as peer %d, deterministicOutbound=%s. peer=%d\n",
                              mnauth.proRegTxHash.ToString(), pnode2->GetId(), deterministicOutbound.ToString(), pnode->GetId());
@@ -191,14 +184,14 @@ void CMNAuth::ProcessMessage(CNode* pnode, const std::string& strCommand, CDataS
     }
 }
 
-void CMNAuth::NotifyMasternodeListChanged(bool undo, const CDeterministicMNList& oldMNList, const CDeterministicMNListDiff& diff)
+void CMNAuth::NotifyMasternodeListChanged(bool undo, const CDeterministicMNList& oldMNList, const CDeterministicMNListDiff& diff, CConnman& connman)
 {
     // we're only interested in updated/removed MNs. Added MNs are of no interest for us
     if (diff.updatedMNs.empty() && diff.removedMns.empty()) {
         return;
     }
 
-    g_connman->ForEachNode([&](CNode* pnode) {
+    connman.ForEachNode([&](CNode* pnode) {
         LOCK(pnode->cs_mnauth);
         if (pnode->verifiedProRegTxHash.IsNull()) {
             return;

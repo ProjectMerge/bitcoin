@@ -45,19 +45,19 @@ public:
     {
         obj.clear();
         obj.setObject();
-        obj.push_back(Pair("version", (int)nVersion));
-        obj.push_back(Pair("height", (int)nHeight));
-        obj.push_back(Pair("merkleRootMNList", merkleRootMNList.ToString()));
+        obj.pushKV("version", (int)nVersion);
+        obj.pushKV("height", (int)nHeight);
+        obj.pushKV("merkleRootMNList", merkleRootMNList.ToString());
         if (nVersion >= 2) {
-            obj.push_back(Pair("merkleRootQuorums", merkleRootQuorums.ToString()));
+            obj.pushKV("merkleRootQuorums", merkleRootQuorums.ToString());
         }
     }
 };
 
-bool CheckCbTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidationState& state);
+bool CheckCbTx(const CTransaction& tx, const CBlockIndex* pindexPrev, TxValidationState& state);
 
-bool CheckCbTxMerkleRoots(const CBlock& block, const CBlockIndex* pindex, CValidationState& state);
-bool CalcCbTxMerkleRootMNList(const CBlock& block, const CBlockIndex* pindexPrev, uint256& merkleRootRet, CValidationState& state);
-bool CalcCbTxMerkleRootQuorums(const CBlock& block, const CBlockIndex* pindexPrev, uint256& merkleRootRet, CValidationState& state);
+bool CheckCbTxMerkleRoots(const CBlock& block, const CBlockIndex* pindex, TxValidationState& state);
+bool CalcCbTxMerkleRootMNList(const CBlock& block, const CBlockIndex* pindexPrev, uint256& merkleRootRet, TxValidationState& state);
+bool CalcCbTxMerkleRootQuorums(const CBlock& block, const CBlockIndex* pindexPrev, uint256& merkleRootRet, TxValidationState& state);
 
 #endif //DASH_CBTX_H

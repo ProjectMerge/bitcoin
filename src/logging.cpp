@@ -145,7 +145,7 @@ const CLogCategoryDesc LogCategories[] =
     {BCLog::TOR, "tor"},
     {BCLog::MEMPOOL, "mempool"},
     {BCLog::HTTP, "http"},
-    {BCLog::BENCH, "bench"},
+    {BCLog::BENCHMARK, "bench"},
     {BCLog::ZMQ, "zmq"},
     {BCLog::WALLETDB, "walletdb"},
     {BCLog::RPC, "rpc"},
@@ -154,7 +154,7 @@ const CLogCategoryDesc LogCategories[] =
     {BCLog::SELECTCOINS, "selectcoins"},
     {BCLog::REINDEX, "reindex"},
     {BCLog::CMPCTBLOCK, "cmpctblock"},
-    {BCLog::RAND, "rand"},
+    {BCLog::RANDOM, "rand"},
     {BCLog::PRUNE, "prune"},
     {BCLog::PROXY, "proxy"},
     {BCLog::MEMPOOLREJ, "mempoolrej"},
@@ -162,12 +162,22 @@ const CLogCategoryDesc LogCategories[] =
     {BCLog::COINDB, "coindb"},
     {BCLog::QT, "qt"},
     {BCLog::LEVELDB, "leveldb"},
+
+    //! existing legacy layer
     {BCLog::VALIDATION, "validation"},
     {BCLog::POS, "pos"},
     {BCLog::MASTERNODE, "masternode"},
     {BCLog::MNPAYMENTS, "mnpayments"},
     {BCLog::MNSYNC, "mnsync"},
     {BCLog::SPORK, "spork"},
+
+    //! deterministic layer
+    {BCLog::CHAINLOCKS, "chainlocks"},
+    {BCLog::LLMQ, "llmq"},
+    {BCLog::LLMQ_DKG, "llmq_dkg"},
+    {BCLog::LLMQ_SIGS, "llmq_sigs"},
+    {BCLog::NETCONN, "netconn"},
+
     {BCLog::ALL, "1"},
     {BCLog::ALL, "all"},
 };

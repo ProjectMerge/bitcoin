@@ -24,6 +24,7 @@
 
 class CEvoDB;
 class CScheduler;
+class BanMan;
 
 namespace llmq
 {
@@ -369,7 +370,7 @@ class CSigSharesManager : public CRecoveredSigsListener
     const size_t MAX_MSGS_SIG_SHARES = 32;
 
 private:
-    CCriticalSection cs;
+    RecursiveMutex cs;
 
     std::thread workThread;
     CThreadInterrupt workInterrupt;
@@ -391,9 +392,10 @@ private:
 
     int64_t lastCleanupTime{0};
     std::atomic<uint32_t> recoveredSigsCounter{0};
+    CConnman& connman;
 
 public:
-    CSigSharesManager();
+    CSigSharesManager(CConnman& connman);
     ~CSigSharesManager();
 
     void StartWorkerThread();
@@ -409,7 +411,7 @@ public:
     void Sign(const CQuorumCPtr& quorum, const uint256& id, const uint256& msgHash);
     void ForceReAnnouncement(const CQuorumCPtr& quorum, Consensus::LLMQType llmqType, const uint256& id, const uint256& msgHash);
 
-    void HandleNewRecoveredSig(const CRecoveredSig& recoveredSig);
+    void HandleNewRecoveredSig(const CRecoveredSig& recoveredSig, CConnman& connman);
 
     static CDeterministicMNCPtr SelectMemberForRecovery(const CQuorumCPtr& quorum, const uint256& id, int attempt);
 

@@ -1,4 +1,5 @@
 // Copyright (c) 2018-2019 The Dash Core developers
+// Copyright (c) 2018-2020 The Merge Core developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -16,7 +17,6 @@
 #include <validation.h>
 
 #include <algorithm>
-#include <limits>
 #include <unordered_set>
 
 namespace llmq
@@ -27,29 +27,19 @@ CSigningManager* quorumSigningManager;
 UniValue CRecoveredSig::ToJson() const
 {
     UniValue ret(UniValue::VOBJ);
-    ret.push_back(Pair("llmqType", (int)llmqType));
-    ret.push_back(Pair("quorumHash", quorumHash.ToString()));
-    ret.push_back(Pair("id", id.ToString()));
-    ret.push_back(Pair("msgHash", msgHash.ToString()));
-    ret.push_back(Pair("sig", sig.Get().ToString()));
-    ret.push_back(Pair("hash", sig.Get().GetHash().ToString()));
+    ret.pushKV("llmqType", (int)llmqType);
+    ret.pushKV("quorumHash", quorumHash.ToString());
+    ret.pushKV("id", id.ToString());
+    ret.pushKV("msgHash", msgHash.ToString());
+    ret.pushKV("sig", sig.Get().ToString());
+    ret.pushKV("hash", sig.Get().GetHash().ToString());
     return ret;
 }
 
 CRecoveredSigsDb::CRecoveredSigsDb(CDBWrapper& _db) :
     db(_db)
 {
-    if (Params().NetworkIDString() == CBaseChainParams::TESTNET) {
-        // TODO this can be completely removed after some time (when we're pretty sure the conversion has been run on most testnet MNs)
-        if (db.Exists(std::string("rs_upgraded"))) {
-            return;
-        }
 
-        ConvertInvalidTimeKeys();
-        AddVoteTimeKeys();
-
-        db.Write(std::string("rs_upgraded"), (uint8_t)1);
-    }
 }
 
 // This converts time values in "rs_t" from host endiannes to big endiannes, which is required to have proper ordering of the keys
@@ -439,8 +429,9 @@ void CRecoveredSigsDb::CleanupOldVotes(int64_t maxAge)
 
 //////////////////
 
-CSigningManager::CSigningManager(CDBWrapper& llmqDb, bool fMemory) :
-    db(llmqDb)
+CSigningManager::CSigningManager(CDBWrapper& llmqDb, bool fMemory, CConnman& _connman) :
+    db(llmqDb),
+    connman(_connman)
 {
 }
 
@@ -482,6 +473,11 @@ void CSigningManager::ProcessMessage(CNode* pfrom, const std::string& strCommand
 
 void CSigningManager::ProcessMessageRecoveredSig(CNode* pfrom, const CRecoveredSig& recoveredSig, CConnman& connman)
 {
+    {
+        LOCK(cs_main);
+        EraseInvRequest(pfrom->GetId(), CInv(MSG_QUORUM_RECOVERED_SIG, recoveredSig.GetHash()));
+    }
+
     bool ban = false;
     if (!PreVerifyRecoveredSig(pfrom->GetId(), recoveredSig, ban)) {
         if (ban) {
@@ -608,7 +604,7 @@ void CSigningManager::ProcessPendingReconstructedRecoveredSigs()
         m = std::move(pendingReconstructedRecoveredSigs);
     }
     for (auto& p : m) {
-        ProcessRecoveredSig(-1, p.second.first, p.second.second, *g_connman);
+        ProcessRecoveredSig(-1, p.second.first, p.second.second, connman);
     }
 }
 
@@ -682,11 +678,6 @@ void CSigningManager::ProcessRecoveredSig(NodeId nodeId, const CRecoveredSig& re
 {
     auto llmqType = (Consensus::LLMQType)recoveredSig.llmqType;
 
-    {
-        LOCK(cs_main);
-        EraseObjectRequest(nodeId, CInv(MSG_QUORUM_RECOVERED_SIG, recoveredSig.GetHash()));
-    }
-
     if (db.HasRecoveredSigForHash(recoveredSig.GetHash())) {
         return;
     }
@@ -729,14 +720,14 @@ void CSigningManager::ProcessRecoveredSig(NodeId nodeId, const CRecoveredSig& re
     }
 
     CInv inv(MSG_QUORUM_RECOVERED_SIG, recoveredSig.GetHash());
-    g_connman->ForEachNode([&](CNode* pnode) {
+    connman.ForEachNode([&](CNode* pnode) {
         if (pnode->nVersion >= LLMQS_PROTO_VERSION && pnode->fSendRecSigs) {
             pnode->PushInventory(inv);
         }
     });
 
     for (auto& l : listeners) {
-        l->HandleNewRecoveredSig(recoveredSig);
+        l->HandleNewRecoveredSig(recoveredSig, connman);
     }
 }
 
@@ -785,7 +776,7 @@ bool CSigningManager::AsyncSignIfMember(Consensus::LLMQType llmqType, const uint
 {
     auto& params = Params().GetConsensus().llmqs.at(llmqType);
 
-    if (!fMasternodeMode || activeMasternodeInfo.proTxHash.IsNull()) {
+    if (!fMasternode || activeMasternodeInfo.proTxHash.IsNull()) {
         return false;
     }
 
@@ -819,18 +810,12 @@ bool CSigningManager::AsyncSignIfMember(Consensus::LLMQType llmqType, const uint
         }
     }
 
-    int tipHeight;
-    {
-        LOCK(cs_main);
-        tipHeight = chainActive.Height();
-    }
-
     // This might end up giving different results on different members
     // This might happen when we are on the brink of confirming a new quorum
     // This gives a slight risk of not getting enough shares to recover a signature
     // But at least it shouldn't be possible to get conflicting recovered signatures
     // TODO fix this by re-signing when the next block arrives, but only when that block results in a change of the quorum list and no recovered signature has been created in the mean time
-    CQuorumCPtr quorum = SelectQuorumForSigning(llmqType, tipHeight, id);
+    CQuorumCPtr quorum = SelectQuorumForSigning(llmqType, id);
     if (!quorum) {
         LogPrint(BCLog::LLMQ, "CSigningManager::%s -- failed to select quorum. id=%s, msgHash=%s\n", __func__, id.ToString(), msgHash.ToString());
         return false;
@@ -898,7 +883,7 @@ bool CSigningManager::GetVoteForId(Consensus::LLMQType llmqType, const uint256& 
     return db.GetVoteForId(llmqType, id, msgHashRet);
 }
 
-std::vector<CQuorumCPtr> CSigningManager::GetActiveQuorumSet(Consensus::LLMQType llmqType, int signHeight)
+CQuorumCPtr CSigningManager::SelectQuorumForSigning(Consensus::LLMQType llmqType, const uint256& selectionHash, int signHeight, int signOffset)
 {
     auto& llmqParams = Params().GetConsensus().llmqs.at(llmqType);
     size_t poolSize = (size_t)llmqParams.signingActiveQuorumCount;
@@ -906,19 +891,17 @@ std::vector<CQuorumCPtr> CSigningManager::GetActiveQuorumSet(Consensus::LLMQType
     CBlockIndex* pindexStart;
     {
         LOCK(cs_main);
-        int startBlockHeight = signHeight - SIGN_HEIGHT_OFFSET;
-        if (startBlockHeight > chainActive.Height()) {
+        if (signHeight == -1) {
+            signHeight = ::ChainActive().Height();
+        }
+        int startBlockHeight = signHeight - signOffset;
+        if (startBlockHeight > ::ChainActive().Height()) {
             return {};
         }
-        pindexStart = chainActive[startBlockHeight];
+        pindexStart = ::ChainActive()[startBlockHeight];
     }
 
-    return quorumManager->ScanQuorums(llmqType, pindexStart, poolSize);
-}
-
-CQuorumCPtr CSigningManager::SelectQuorumForSigning(Consensus::LLMQType llmqType, int signHeight, const uint256& selectionHash)
-{
-    auto quorums = GetActiveQuorumSet(llmqType, signHeight);
+    auto quorums =  quorumManager->ScanQuorums(llmqType, pindexStart, poolSize);
     if (quorums.empty()) {
         return nullptr;
     }
@@ -938,7 +921,7 @@ CQuorumCPtr CSigningManager::SelectQuorumForSigning(Consensus::LLMQType llmqType
 
 bool CSigningManager::VerifyRecoveredSig(Consensus::LLMQType llmqType, int signedAtHeight, const uint256& id, const uint256& msgHash, const CBLSSignature& sig)
 {
-    auto quorum = SelectQuorumForSigning(llmqType, signedAtHeight, id);
+    auto quorum = SelectQuorumForSigning(llmqType, id, signedAtHeight);
     if (!quorum) {
         return false;
     }

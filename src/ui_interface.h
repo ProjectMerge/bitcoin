@@ -11,11 +11,16 @@
 #include <string>
 
 class CBlockIndex;
+class CDeterministicMNList;
 namespace boost {
 namespace signals2 {
 class connection;
 }
 } // namespace boost
+
+namespace interfaces {
+class Wallet;
+} // namespace interfaces
 
 /** General change type (added, updated, removed). */
 enum ChangeType
@@ -116,8 +121,11 @@ public:
     /** Banlist did change. */
     ADD_SIGNALS_DECL_WRAPPER(BannedListChanged, void, void);
 
-    /** Syncing activity has changed */
-    ADD_SIGNALS_DECL_WRAPPER(NotifyAdditionalDataSyncProgressChanged, void, double nSyncProgress);
+    /** Masternode list has changed */
+    ADD_SIGNALS_DECL_WRAPPER(NotifyMasternodeListChanged, void, const CDeterministicMNList&);
+
+    /** Additional sata sync progress changed */
+    ADD_SIGNALS_DECL_WRAPPER(NotifyAdditionalDataSyncProgressChanged, void, double);
 };
 
 /** Show warning message **/

@@ -88,6 +88,16 @@ struct CNodeStateStats {
     std::vector<int> vHeightInFlight;
 };
 
+/** Inv/Tx object request creation/removal */
+void EraseInvRequest(NodeId from, const uint256& hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
+void EraseInvRequest(NodeId from, const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
+void EraseInvRequest(const CNode* pfrom, const uint256& hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
+void EraseInvRequest(const CNode* pfrom, const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
+void RequestInv(const CNode* pfrom, const CInv &inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
+
+/** Check if node is banned via nodeid */
+bool IsBanned(NodeId nodeid, BanMan& banman);
+
 /** Get statistics from node state */
 bool GetNodeStateStats(NodeId nodeid, CNodeStateStats &stats);
 

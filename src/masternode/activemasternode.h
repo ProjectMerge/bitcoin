@@ -1,5 +1,4 @@
-// Copyright (c) 2014-2017 The Dash Core developers
-// Copyright (c) 2015-2018 The PIVX developers
+// Copyright (c) 2014-2019 The Dash Core developers
 // Copyright (c) 2018-2020 The Merge Core developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -7,67 +6,64 @@
 #ifndef ACTIVEMASTERNODE_H
 #define ACTIVEMASTERNODE_H
 
-#include <init.h>
+#include <chainparams.h>
 #include <key.h>
-#include <masternode/masternode.h>
 #include <net.h>
-#include <sync.h>
-#include <wallet/wallet.h>
+#include <primitives/transaction.h>
+#include <validationinterface.h>
 
-#define ACTIVE_MASTERNODE_INITIAL 0
-#define ACTIVE_MASTERNODE_SYNC_IN_PROCESS 1
-#define ACTIVE_MASTERNODE_INPUT_TOO_NEW 2
-#define ACTIVE_MASTERNODE_NOT_CAPABLE 3
-#define ACTIVE_MASTERNODE_STARTED 4
+#include <evo/deterministicmns.h>
+#include <evo/providertx.h>
 
-// Responsible for activating the Masternode and pinging the network
-class CActiveMasternode {
-private:
+struct CActiveMasternodeInfo;
+class CActiveMasternodeManager;
 
-    // critical section to protect the inner data structures
-    mutable RecursiveMutex cs;
+extern CActiveMasternodeInfo activeMasternodeInfo;
+extern CActiveMasternodeManager* activeMasternodeManager;
 
-    /// Ping Masternode
-    bool SendMasternodePing(std::string& errorMessage, CConnman& connman);
-
-    /// Create Masternode broadcast, needs to be relayed manually after that
-    bool CreateBroadcast(CTxIn vin, CService service, CKey key, CPubKey pubKey, CKey keyMasternode, CPubKey pubKeyMasternode, std::string& errorMessage, CMasternodeBroadcast& mnb);
-
-    /// Get input that can be used for the Masternode
-    bool GetMasternodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secretKey, std::string strTxHash, std::string strOutputIndex);
-
-public:
-
-    bool startMessage{false};
-
-    // Initialized by init.cpp
-    // Keys for the main Masternode
-    CPubKey pubKeyMasternode;
+struct CActiveMasternodeInfo {
+    // Keys for the active Masternode
+    std::unique_ptr<CBLSPublicKey> blsPubKeyOperator;
+    std::unique_ptr<CBLSSecretKey> blsKeyOperator;
 
     // Initialized while registering Masternode
-    CTxIn vin;
+    uint256 proTxHash;
+    COutPoint outpoint;
     CService service;
+};
 
-    int status;
-    std::string notCapableReason;
 
-    CActiveMasternode()
-    {
-        status = ACTIVE_MASTERNODE_INITIAL;
-    }
+class CActiveMasternodeManager : public CValidationInterface
+{
+public:
+    enum masternode_state_t {
+        MASTERNODE_WAITING_FOR_PROTX,
+        MASTERNODE_POSE_BANNED,
+        MASTERNODE_REMOVED,
+        MASTERNODE_OPERATOR_KEY_CHANGED,
+        MASTERNODE_PROTX_IP_CHANGED,
+        MASTERNODE_READY,
+        MASTERNODE_ERROR,
+    };
 
-    /// Manage status of main Masternode
-    void ManageStatus(CConnman& connman);
-    std::string GetStatus();
+private:
+    masternode_state_t state{MASTERNODE_WAITING_FOR_PROTX};
+    std::string strError;
+    CConnman& connman;
 
-    /// Create Masternode broadcast, needs to be relayed manually after that
-    bool CreateBroadcast(std::string strService, std::string strKey, std::string strTxHash, std::string strOutputIndex, std::string& errorMessage, CMasternodeBroadcast& mnb, bool fOffline = false);
+public:
+    CActiveMasternodeManager(CConnman& _connman): connman(_connman) {}
+    virtual void UpdatedBlockTip(const CBlockIndex* pindexNew, const CBlockIndex* pindexFork, bool fInitialDownload);
 
-    /// Get input that can be used for the Masternode
-    bool GetMasternodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secretKey);
+    void Init(const CBlockIndex* pindex);
 
-    /// Enable cold wallet mode (run a Masternode with no funds)
-    bool EnableHotColdMasterNode(CTxIn& vin, CService& addr);
+    std::string GetStateString() const;
+    std::string GetStatus() const;
+
+    static bool IsValidNetAddr(CService addrIn);
+
+private:
+    bool GetLocalAddress(CService& addrRet);
 };
 
 #endif

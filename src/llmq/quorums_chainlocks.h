@@ -55,7 +55,8 @@ class CChainLocksHandler : public CRecoveredSigsListener
 private:
     CScheduler* scheduler;
     boost::thread* scheduler_thread;
-    CCriticalSection cs;
+    RecursiveMutex cs;
+
     bool tryLockChainTipScheduled{false};
     bool isSporkActive{false};
     bool isEnforced{false};
@@ -81,7 +82,7 @@ private:
     int64_t lastCleanupTime{0};
 
 public:
-    explicit CChainLocksHandler();
+    CChainLocksHandler(CConnman& connman);
     ~CChainLocksHandler();
 
     void Start();
@@ -92,7 +93,7 @@ public:
     CChainLockSig GetBestChainLock();
 
     void ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, CConnman& connman);
-    void ProcessNewChainLock(NodeId from, const CChainLockSig& clsig, const uint256& hash);
+    void ProcessNewChainLock(NodeId from, const CChainLockSig& clsig, const uint256& hash, CConnman& connman);
     void AcceptedBlockHeader(const CBlockIndex* pindexNew);
     void UpdatedBlockTip(const CBlockIndex* pindexNew);
     void TransactionAddedToMempool(const CTransactionRef& tx, int64_t nAcceptTime);
@@ -101,7 +102,7 @@ public:
     void CheckActiveState();
     void TrySignChainTip();
     void EnforceBestChainLock();
-    virtual void HandleNewRecoveredSig(const CRecoveredSig& recoveredSig);
+    virtual void HandleNewRecoveredSig(const CRecoveredSig& recoveredSig, CConnman& connman);
 
     bool HasChainLock(int nHeight, const uint256& blockHash);
     bool HasConflictingChainLock(int nHeight, const uint256& blockHash);

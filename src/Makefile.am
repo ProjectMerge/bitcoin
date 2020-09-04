@@ -107,6 +107,7 @@ BITCOIN_CORE_H = \
   attributes.h \
   banman.h \
   base58.h \
+  batchedlogger.h \
   bech32.h \
   bloom.h \
   blockencodings.h \
@@ -169,18 +170,15 @@ BITCOIN_CORE_H = \
   llmq/quorums_dkgsessionmgr.h \
   llmq/quorums_dkgsession.h \
   llmq/quorums_init.h \
-  llmq/quorums_instantsend.h \
   llmq/quorums_signing.h \
   llmq/quorums_signing_shares.h \
   llmq/quorums_utils.h \
   masternode/activemasternode.h \
-  masternode/masternode.h \
+  masternode/masternode-meta.h \
   masternode/masternode-payments.h \
   masternode/masternode-sync.h \
-  masternode/masternodedb.h \
-  masternode/masternodeman.h \
-  masternode/masternodeconfig.h \
-  masternode/masternode-helpers.h \
+  masternode/masternode-utils.h \
+  masternode/messagesigner.h \
   masternode/netfulfilledman.h \
   masternode/spork.h \
   logging.h \
@@ -226,6 +224,7 @@ BITCOIN_CORE_H = \
   rpc/request.h \
   rpc/server.h \
   rpc/util.h \
+  saltedhasher.h \
   scheduler.h \
   script/descriptor.h \
   script/keyorigin.h \
@@ -235,6 +234,8 @@ BITCOIN_CORE_H = \
   script/standard.h \
   shutdown.h \
   streams.h \
+  support/allocators/mt_pooled_secure.h \
+  support/allocators/pooled_secure.h \
   support/allocators/secure.h \
   support/allocators/zeroafterfree.h \
   support/cleanse.h \
@@ -281,6 +282,7 @@ BITCOIN_CORE_H = \
   wallet/feebumper.h \
   wallet/fees.h \
   wallet/ismine.h \
+  wallet/masternode.h \
   wallet/load.h \
   wallet/rpcwallet.h \
   wallet/scriptpubkeyman.h \
@@ -314,6 +316,7 @@ libmerge_server_a_SOURCES = \
   addrdb.cpp \
   addrman.cpp \
   banman.cpp \
+  batchedlogger.cpp \
   blockencodings.cpp \
   blockfilter.cpp \
   blocksignature.cpp \
@@ -346,18 +349,15 @@ libmerge_server_a_SOURCES = \
   llmq/quorums_dkgsessionmgr.cpp \
   llmq/quorums_dkgsession.cpp \
   llmq/quorums_init.cpp \
-  llmq/quorums_instantsend.cpp \
   llmq/quorums_signing.cpp \
   llmq/quorums_signing_shares.cpp \
   llmq/quorums_utils.cpp \
   masternode/activemasternode.cpp \
-  masternode/masternode.cpp \
+  masternode/masternode-meta.cpp \
   masternode/masternode-payments.cpp \
   masternode/masternode-sync.cpp \
-  masternode/masternodedb.cpp \
-  masternode/masternodeman.cpp \
-  masternode/masternodeconfig.cpp \
-  masternode/masternode-helpers.cpp \
+  masternode/masternode-utils.cpp \
+  masternode/messagesigner.cpp \
   masternode/netfulfilledman.cpp \
   masternode/spork.cpp \
   miner.cpp \
@@ -397,6 +397,7 @@ libmerge_server_a_SOURCES = \
   validation.cpp \
   validationinterface.cpp \
   versionbits.cpp \
+  wallet/masternode.cpp \
   wallet/stake.cpp \
   $(BITCOIN_CORE_H)
 
@@ -569,6 +570,7 @@ libmerge_common_a_SOURCES = \
   policy/feerate.cpp \
   policy/policy.cpp \
   protocol.cpp \
+  saltedhasher.cpp \
   psbt.cpp \
   rpc/rawtransaction_util.cpp \
   rpc/util.cpp \

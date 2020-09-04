@@ -8,8 +8,6 @@
 #include <consensus/validation.h>
 #include <interfaces/chain.h>
 #include <interfaces/handler.h>
-#include <masternode/masternode.h>
-#include <masternode/masternodeman.h>
 #include <policy/feerate.h>
 #include <policy/fees.h>
 #include <primitives/transaction.h>

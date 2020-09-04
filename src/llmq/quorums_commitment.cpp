@@ -1,9 +1,9 @@
 // Copyright (c) 2018-2019 The Dash Core developers
+// Copyright (c) 2018-2020 The Merge Core developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <llmq/quorums_commitment.h>
-#include <llmq/quorums_utils.h>
 
 #include <chainparams.h>
 #include <validation.h>
@@ -32,7 +32,7 @@ bool CFinalCommitment::Verify(const std::vector<CDeterministicMNCPtr>& members, 
     }
 
     if (!Params().GetConsensus().llmqs.count((Consensus::LLMQType)llmqType)) {
-        LogPrintfFinalCommitment("invalid llmqType=%d\n", llmqType);
+        LogPrint(BCLog::LLMQ, "invalid llmqType=%d\n", llmqType);
         return false;
     }
     const auto& params = Params().GetConsensus().llmqs.at((Consensus::LLMQType)llmqType);
@@ -42,37 +42,37 @@ bool CFinalCommitment::Verify(const std::vector<CDeterministicMNCPtr>& members, 
     }
 
     if (CountValidMembers() < params.minSize) {
-        LogPrintfFinalCommitment("invalid validMembers count. validMembersCount=%d\n", CountValidMembers());
+        LogPrint(BCLog::LLMQ, "invalid validMembers count. validMembersCount=%d\n", CountValidMembers());
         return false;
     }
     if (CountSigners() < params.minSize) {
-        LogPrintfFinalCommitment("invalid signers count. signersCount=%d\n", CountSigners());
+        LogPrint(BCLog::LLMQ, "invalid signers count. signersCount=%d\n", CountSigners());
         return false;
     }
     if (!quorumPublicKey.IsValid()) {
-        LogPrintfFinalCommitment("invalid quorumPublicKey\n");
+        LogPrint(BCLog::LLMQ, "invalid quorumPublicKey\n");
         return false;
     }
     if (quorumVvecHash.IsNull()) {
-        LogPrintfFinalCommitment("invalid quorumVvecHash\n");
+        LogPrint(BCLog::LLMQ, "invalid quorumVvecHash\n");
         return false;
     }
     if (!membersSig.IsValid()) {
-        LogPrintfFinalCommitment("invalid membersSig\n");
+        LogPrint(BCLog::LLMQ, "invalid membersSig\n");
         return false;
     }
     if (!quorumSig.IsValid()) {
-        LogPrintfFinalCommitment("invalid vvecSig\n");
+        LogPrint(BCLog::LLMQ, "invalid vvecSig\n");
         return false;
     }
 
     for (size_t i = members.size(); i < params.size; i++) {
         if (validMembers[i]) {
-            LogPrintfFinalCommitment("invalid validMembers bitset. bit %d should not be set\n", i);
+            LogPrint(BCLog::LLMQ, "invalid validMembers bitset. bit %d should not be set\n", i);
             return false;
         }
         if (signers[i]) {
-            LogPrintfFinalCommitment("invalid signers bitset. bit %d should not be set\n", i);
+            LogPrint(BCLog::LLMQ, "invalid signers bitset. bit %d should not be set\n", i);
             return false;
         }
     }
@@ -90,12 +90,12 @@ bool CFinalCommitment::Verify(const std::vector<CDeterministicMNCPtr>& members, 
         }
 
         if (!membersSig.VerifySecureAggregated(memberPubKeys, commitmentHash)) {
-            LogPrintfFinalCommitment("invalid aggregated members signature\n");
+            LogPrint(BCLog::LLMQ, "invalid aggregated members signature\n");
             return false;
         }
 
         if (!quorumSig.VerifyInsecure(quorumPublicKey, commitmentHash)) {
-            LogPrintfFinalCommitment("invalid quorum signature\n");
+            LogPrint(BCLog::LLMQ, "invalid quorum signature\n");
             return false;
         }
     }
@@ -106,7 +106,7 @@ bool CFinalCommitment::Verify(const std::vector<CDeterministicMNCPtr>& members, 
 bool CFinalCommitment::VerifyNull() const
 {
     if (!Params().GetConsensus().llmqs.count((Consensus::LLMQType)llmqType)) {
-        LogPrintfFinalCommitment("invalid llmqType=%d\n", llmqType);
+        LogPrint(BCLog::LLMQ, "invalid llmqType=%d\n", llmqType);
         return false;
     }
     const auto& params = Params().GetConsensus().llmqs.at((Consensus::LLMQType)llmqType);
@@ -121,57 +121,57 @@ bool CFinalCommitment::VerifyNull() const
 bool CFinalCommitment::VerifySizes(const Consensus::LLMQParams& params) const
 {
     if (signers.size() != params.size) {
-        LogPrintfFinalCommitment("invalid signers.size=%d\n", signers.size());
+        LogPrint(BCLog::LLMQ, "invalid signers.size=%d\n", signers.size());
         return false;
     }
     if (validMembers.size() != params.size) {
-        LogPrintfFinalCommitment("invalid signers.size=%d\n", signers.size());
+        LogPrint(BCLog::LLMQ, "invalid signers.size=%d\n", signers.size());
         return false;
     }
     return true;
 }
 
-bool CheckLLMQCommitment(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidationState& state)
+bool CheckLLMQCommitment(const CTransaction& tx, const CBlockIndex* pindexPrev, TxValidationState& state)
 {
     CFinalCommitmentTxPayload qcTx;
     if (!GetTxPayload(tx, qcTx)) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-qc-payload");
+        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-qc-payload");
     }
 
     if (qcTx.nVersion == 0 || qcTx.nVersion > CFinalCommitmentTxPayload::CURRENT_VERSION) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-qc-version");
+        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-qc-version");
     }
 
     if (qcTx.nHeight != pindexPrev->nHeight + 1) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-qc-height");
+        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-qc-height");
     }
 
-    if (!mapBlockIndex.count(qcTx.commitment.quorumHash)) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-qc-quorum-hash");
+    if (!::BlockIndex().count(qcTx.commitment.quorumHash)) {
+        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-qc-quorum-hash");
     }
 
-    const CBlockIndex* pindexQuorum = mapBlockIndex[qcTx.commitment.quorumHash];
+    const CBlockIndex* pindexQuorum = ::BlockIndex()[qcTx.commitment.quorumHash];
 
     if (pindexQuorum != pindexPrev->GetAncestor(pindexQuorum->nHeight)) {
         // not part of active chain
-        return state.DoS(100, false, REJECT_INVALID, "bad-qc-quorum-hash");
+        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-qc-quorum-hash");
     }
 
     if (!Params().GetConsensus().llmqs.count((Consensus::LLMQType)qcTx.commitment.llmqType)) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-qc-type");
+        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-qc-type");
     }
     const auto& params = Params().GetConsensus().llmqs.at((Consensus::LLMQType)qcTx.commitment.llmqType);
 
     if (qcTx.commitment.IsNull()) {
         if (!qcTx.commitment.VerifyNull()) {
-            return state.DoS(100, false, REJECT_INVALID, "bad-qc-invalid-null");
+            return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-qc-invalid-null");
         }
         return true;
     }
 
     auto members = CLLMQUtils::GetAllQuorumMembers(params.type, pindexQuorum);
     if (!qcTx.commitment.Verify(members, false)) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-qc-invalid");
+        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-qc-invalid");
     }
 
     return true;

@@ -1,4 +1,5 @@
 // Copyright (c) 2018-2019 The Dash Core developers
+// Copyright (c) 2018-2020 The Merge Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -17,13 +18,13 @@
 #include <llmq/quorums_commitment.h>
 #include <llmq/quorums_blockprocessor.h>
 
-bool CheckSpecialTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidationState& state)
+bool CheckSpecialTx(const CTransaction& tx, const CBlockIndex* pindexPrev, TxValidationState& state)
 {
     if (tx.nVersion != 3 || tx.nType == TRANSACTION_NORMAL)
         return true;
 
     if (pindexPrev && pindexPrev->nHeight + 1 < Params().GetConsensus().DIP0003Height) {
-        return state.DoS(10, false, REJECT_INVALID, "bad-tx-type");
+        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-tx-type");
     }
 
     try {
@@ -37,19 +38,20 @@ bool CheckSpecialTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CVali
         case TRANSACTION_PROVIDER_UPDATE_REVOKE:
             return CheckProUpRevTx(tx, pindexPrev, state);
         case TRANSACTION_COINBASE:
+        case TRANSACTION_COINSTAKE:
             return CheckCbTx(tx, pindexPrev, state);
         case TRANSACTION_QUORUM_COMMITMENT:
             return llmq::CheckLLMQCommitment(tx, pindexPrev, state);
         }
     } catch (const std::exception& e) {
         LogPrintf("%s -- failed: %s\n", __func__, e.what());
-        return state.DoS(100, false, REJECT_INVALID, "failed-check-special-tx");
+        return state.Invalid(TxValidationResult::TX_CONSENSUS, "failed-check-special-tx");
     }
 
-    return state.DoS(10, false, REJECT_INVALID, "bad-tx-type-check");
+    return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-tx-type-check");
 }
 
-bool ProcessSpecialTx(const CTransaction& tx, const CBlockIndex* pindex, CValidationState& state)
+bool ProcessSpecialTx(const CTransaction& tx, const CBlockIndex* pindex, TxValidationState& state)
 {
     if (tx.nVersion != 3 || tx.nType == TRANSACTION_NORMAL) {
         return true;
@@ -61,13 +63,14 @@ bool ProcessSpecialTx(const CTransaction& tx, const CBlockIndex* pindex, CValida
     case TRANSACTION_PROVIDER_UPDATE_REGISTRAR:
     case TRANSACTION_PROVIDER_UPDATE_REVOKE:
         return true; // handled in batches per block
+    case TRANSACTION_COINSTAKE:
     case TRANSACTION_COINBASE:
         return true; // nothing to do
     case TRANSACTION_QUORUM_COMMITMENT:
         return true; // handled per block
     }
 
-    return state.DoS(100, false, REJECT_INVALID, "bad-tx-type-proc");
+    return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-tx-type-proc");
 }
 
 bool UndoSpecialTx(const CTransaction& tx, const CBlockIndex* pindex)
@@ -82,6 +85,7 @@ bool UndoSpecialTx(const CTransaction& tx, const CBlockIndex* pindex)
     case TRANSACTION_PROVIDER_UPDATE_REGISTRAR:
     case TRANSACTION_PROVIDER_UPDATE_REVOKE:
         return true; // handled in batches per block
+    case TRANSACTION_COINSTAKE:
     case TRANSACTION_COINBASE:
         return true; // nothing to do
     case TRANSACTION_QUORUM_COMMITMENT:
@@ -91,7 +95,7 @@ bool UndoSpecialTx(const CTransaction& tx, const CBlockIndex* pindex)
     return false;
 }
 
-bool ProcessSpecialTxsInBlock(const CBlock& block, const CBlockIndex* pindex, CValidationState& state, bool fJustCheck, bool fCheckCbTxMerleRoots)
+bool ProcessSpecialTxsInBlock(const CBlock& block, const CBlockIndex* pindex, BlockValidationState& state, bool fJustCheck, bool fCheckCbTxMerleRoots)
 {
     static int64_t nTimeLoop = 0;
     static int64_t nTimeQuorum = 0;
@@ -101,13 +105,14 @@ bool ProcessSpecialTxsInBlock(const CBlock& block, const CBlockIndex* pindex, CV
     try {
         int64_t nTime1 = GetTimeMicros();
 
+        TxValidationState txstate;
         for (int i = 0; i < (int)block.vtx.size(); i++) {
             const CTransaction& tx = *block.vtx[i];
-            if (!CheckSpecialTx(tx, pindex->pprev, state)) {
+            if (!CheckSpecialTx(tx, pindex->pprev, txstate)) {
                 // pass the state returned by the function above
                 return false;
             }
-            if (!ProcessSpecialTx(tx, pindex, state)) {
+            if (!ProcessSpecialTx(tx, pindex, txstate)) {
                 // pass the state returned by the function above
                 return false;
             }
@@ -124,7 +129,7 @@ bool ProcessSpecialTxsInBlock(const CBlock& block, const CBlockIndex* pindex, CV
         int64_t nTime3 = GetTimeMicros(); nTimeQuorum += nTime3 - nTime2;
         LogPrint(BCLog::BENCHMARK, "        - quorumBlockProcessor: %.2fms [%.2fs]\n", 0.001 * (nTime3 - nTime2), nTimeQuorum * 0.000001);
 
-        if (!deterministicMNManager->ProcessBlock(block, pindex, state, fJustCheck)) {
+        if (!deterministicMNManager->ProcessBlock(block, pindex, txstate, fJustCheck)) {
             // pass the state returned by the function above
             return false;
         }
@@ -132,7 +137,7 @@ bool ProcessSpecialTxsInBlock(const CBlock& block, const CBlockIndex* pindex, CV
         int64_t nTime4 = GetTimeMicros(); nTimeDMN += nTime4 - nTime3;
         LogPrint(BCLog::BENCHMARK, "        - deterministicMNManager: %.2fms [%.2fs]\n", 0.001 * (nTime4 - nTime3), nTimeDMN * 0.000001);
 
-        if (fCheckCbTxMerleRoots && !CheckCbTxMerkleRoots(block, pindex, state)) {
+        if (fCheckCbTxMerleRoots && !CheckCbTxMerkleRoots(block, pindex, txstate)) {
             // pass the state returned by the function above
             return false;
         }
@@ -141,7 +146,7 @@ bool ProcessSpecialTxsInBlock(const CBlock& block, const CBlockIndex* pindex, CV
         LogPrint(BCLog::BENCHMARK, "        - CheckCbTxMerkleRoots: %.2fms [%.2fs]\n", 0.001 * (nTime5 - nTime4), nTimeMerkle * 0.000001);
     } catch (const std::exception& e) {
         LogPrintf(strprintf("%s -- failed: %s\n", __func__, e.what()).c_str());
-        return state.DoS(100, false, REJECT_INVALID, "failed-procspectxsinblock");
+        return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "failed-procspectxsinblock");
     }
 
     return true;

@@ -40,44 +40,29 @@ const char *SENDCMPCT="sendcmpct";
 const char *CMPCTBLOCK="cmpctblock";
 const char *GETBLOCKTXN="getblocktxn";
 const char *BLOCKTXN="blocktxn";
-//! dash types
-const char* IX = "ix";
-const char* IXLOCKVOTE = "txlvote";
+///////////////////////////////////////// merge type
 const char* SPORK = "spork";
 const char* GETSPORKS = "getsporks";
-const char* MNBROADCAST = "mnb";
-const char* MNPING = "mnp";
-const char* MNWINNER = "mnw";
-const char* GETMNWINNERS = "mnget";
-const char* BUDGETPROPOSAL = "mprop";
-const char* BUDGETVOTE = "mvote";
-const char* BUDGETVOTESYNC = "mnvs";
-const char* FINALBUDGET = "fbs";
-const char* FINALBUDGETVOTE = "fbvote";
-const char* SYNCSTATUSCOUNT = "ssc";
-const char* DSEG = "dseg";
-const char* DSEEP = "dseep";
+const char *SYNCSTATUSCOUNT="ssc";
+const char *GETMNLISTDIFF="getmnlistd";
+const char *MNLISTDIFF="mnlistdiff";
+const char *QSENDRECSIGS="qsendrecsigs";
+const char *QFCOMMITMENT="qfcommit";
+const char *QCONTRIB="qcontrib";
+const char *QCOMPLAINT="qcomplaint";
+const char *QJUSTIFICATION="qjustify";
+const char *QPCOMMITMENT="qpcommit";
+const char *QWATCH="qwatch";
+const char *QSIGSESANN="qsigsesann";
+const char *QSIGSHARESINV="qsigsinv";
+const char *QGETSIGSHARES="qgetsigs";
+const char *QBSIGSHARES="qbsigs";
+const char *QSIGREC="qsigrec";
+const char *QSIGSHARE="qsigshare";
+const char *CLSIG="clsig";
+const char *ISLOCK="islock";
+const char *MNAUTH="mnauth";
 }; // namespace NetMsgType
-
-static const char* ppszTypeName[] = {
-        "ERROR",
-        "tx",
-        "block",
-        "filtered block",
-        "tx lock request",
-        "tx lock vote",
-        "spork",
-        "mn winner",
-        "mn scan error",
-        "mn budget vote",
-        "mn budget proposal",
-        "mn budget finalized",
-        "mn budget finalized vote",
-        "mn quorum",
-        "mn announce",
-        "mn ping",
-        "dstx"
-};
 
 /** All known message types. Keep this in the same order as the list of
  * messages above and in protocol.h.
@@ -103,26 +88,33 @@ const static std::string allNetMessageTypes[] = {
     NetMsgType::FILTERADD,
     NetMsgType::FILTERCLEAR,
     NetMsgType::SENDHEADERS,
-    NetMsgType::IX,
-    NetMsgType::IXLOCKVOTE,
-    NetMsgType::SPORK,
-    NetMsgType::GETSPORKS,
-    NetMsgType::MNBROADCAST,
-    NetMsgType::MNPING,
-    NetMsgType::MNWINNER,
-    NetMsgType::GETMNWINNERS,
-    NetMsgType::BUDGETPROPOSAL,
-    NetMsgType::BUDGETVOTE,
-    NetMsgType::BUDGETVOTESYNC,
-    NetMsgType::FINALBUDGET,
-    NetMsgType::FINALBUDGETVOTE,
-    NetMsgType::SYNCSTATUSCOUNT,
-    NetMsgType::DSEG,
-    NetMsgType::FEEFILTER,
+    ///////////////////////////////////// btc type
     NetMsgType::SENDCMPCT,
     NetMsgType::CMPCTBLOCK,
     NetMsgType::GETBLOCKTXN,
     NetMsgType::BLOCKTXN,
+    ///////////////////////////////////// dash type
+    NetMsgType::SPORK,
+    NetMsgType::GETSPORKS,
+    NetMsgType::SYNCSTATUSCOUNT,
+    NetMsgType::GETMNLISTDIFF,
+    NetMsgType::MNLISTDIFF,
+    NetMsgType::QSENDRECSIGS,
+    NetMsgType::QFCOMMITMENT,
+    NetMsgType::QCONTRIB,
+    NetMsgType::QCOMPLAINT,
+    NetMsgType::QJUSTIFICATION,
+    NetMsgType::QPCOMMITMENT,
+    NetMsgType::QWATCH,
+    NetMsgType::QSIGSESANN,
+    NetMsgType::QSIGSHARESINV,
+    NetMsgType::QGETSIGSHARES,
+    NetMsgType::QBSIGSHARES,
+    NetMsgType::QSIGREC,
+    NetMsgType::QSIGSHARE,
+    NetMsgType::CLSIG,
+    NetMsgType::ISLOCK,
+    NetMsgType::MNAUTH,
 };
 const static std::vector<std::string> allNetMessageTypesVec(allNetMessageTypes, allNetMessageTypes+ARRAYLEN(allNetMessageTypes));
 
@@ -219,56 +211,60 @@ CInv::CInv()
     hash.SetNull();
 }
 
-CInv::CInv(int typeIn, const uint256& hashIn)
-{
-    type = typeIn;
-    hash = hashIn;
-}
-
-CInv::CInv(const std::string& strType, const uint256& hashIn)
-{
-    unsigned int i;
-    for (i = 1; i < ARRAYLEN(ppszTypeName); i++) {
-        if (strType == ppszTypeName[i]) {
-            type = i;
-            break;
-        }
-    }
-    if (i == ARRAYLEN(ppszTypeName))
-        LogPrint(BCLog::NET, "CInv::CInv(string, uint256) : unknown type '%s'", strType);
-    hash = hashIn;
-}
+CInv::CInv(int typeIn, const uint256& hashIn) : type(typeIn), hash(hashIn) {}
 
 bool operator<(const CInv& a, const CInv& b)
 {
     return (a.type < b.type || (a.type == b.type && a.hash < b.hash));
 }
 
+const char* CInv::GetCommandInternal() const
+{
+    switch (type)
+    {
+        case MSG_TX:                            return NetMsgType::TX;
+        case MSG_BLOCK:                         return NetMsgType::BLOCK;
+        case MSG_FILTERED_BLOCK:                return NetMsgType::MERKLEBLOCK;
+        case MSG_CMPCT_BLOCK:                   return NetMsgType::CMPCTBLOCK;
+        case MSG_SPORK:                         return NetMsgType::SPORK;
+        case MSG_QUORUM_FINAL_COMMITMENT:       return NetMsgType::QFCOMMITMENT;
+        case MSG_QUORUM_CONTRIB:                return NetMsgType::QCONTRIB;
+        case MSG_QUORUM_COMPLAINT:              return NetMsgType::QCOMPLAINT;
+        case MSG_QUORUM_JUSTIFICATION:          return NetMsgType::QJUSTIFICATION;
+        case MSG_QUORUM_PREMATURE_COMMITMENT:   return NetMsgType::QPCOMMITMENT;
+        case MSG_QUORUM_RECOVERED_SIG:          return NetMsgType::QSIGREC;
+        case MSG_CLSIG:                         return NetMsgType::CLSIG;
+        case MSG_ISLOCK:                        return NetMsgType::ISLOCK;
+        default:
+            return nullptr;
+    }
+}
+
 bool CInv::IsKnownType() const
 {
-    return (type >= 1 && type < (int)ARRAYLEN(ppszTypeName));
+    return GetCommandInternal() != nullptr;
 }
 
 bool CInv::IsMasterNodeType() const{
      return (type >= 6);
 }
 
-const char* CInv::GetCommand() const
+std::string CInv::GetCommand() const
 {
-    if (!IsKnownType()) {
-        LogPrint(BCLog::NET, "CInv::GetCommand() : type=%d unknown type", type);
-        return "UNKNOWN";
+    auto cmd = GetCommandInternal();
+    if (cmd == nullptr) {
+        throw std::out_of_range(strprintf("CInv::GetCommand(): type=%d unknown type", type));
     }
-
-    return ppszTypeName[type];
+    return cmd;
 }
 
 std::string CInv::ToString() const
 {
-    try {
-        return strprintf("%s %s", GetCommand(), hash.ToString());
-    } catch(const std::out_of_range &) {
+    auto cmd = GetCommandInternal();
+    if (!cmd) {
         return strprintf("0x%08x %s", type, hash.ToString());
+    } else {
+        return strprintf("%s %s", cmd, hash.ToString());
     }
 }
 

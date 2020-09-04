@@ -1,4 +1,5 @@
 // Copyright (c) 2018-2019 The Dash Core developers
+// Copyright (c) 2018-2020 The Merge Core developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -12,10 +13,11 @@
 
 #include <evo/specialtx.h>
 
-#include <masternode/activemasternode.h>
 #include <chainparams.h>
 #include <init.h>
+#include <masternode/activemasternode.h>
 #include <masternode/masternode-sync.h>
+#include <shutdown.h>
 #include <univalue.h>
 #include <validation.h>
 
@@ -145,7 +147,7 @@ void CQuorum::StartCachePopulatorThread(std::shared_ptr<CQuorum> _this)
     // this thread will exit after some time
     // when then later some other thread tries to get keys, it will be much faster
     _this->cachePopulatorThread = std::thread([_this, t]() {
-        RenameThread("dash-q-cachepop");
+        util::ThreadRename("merge-q-cachepop");
         for (size_t i = 0; i < _this->members.size() && !_this->stopCachePopulatorThread && !ShutdownRequested(); i++) {
             if (_this->qc.validMembers[i]) {
                 _this->GetPubKeyShare(i);
@@ -155,10 +157,11 @@ void CQuorum::StartCachePopulatorThread(std::shared_ptr<CQuorum> _this)
     });
 }
 
-CQuorumManager::CQuorumManager(CEvoDB& _evoDb, CBLSWorker& _blsWorker, CDKGSessionManager& _dkgManager) :
+CQuorumManager::CQuorumManager(CEvoDB& _evoDb, CBLSWorker& _blsWorker, CDKGSessionManager& _dkgManager, CConnman& _connman) :
     evoDb(_evoDb),
     blsWorker(_blsWorker),
-    dkgManager(_dkgManager)
+    dkgManager(_dkgManager),
+    connman(_connman)
 {
 }
 
@@ -169,18 +172,18 @@ void CQuorumManager::UpdatedBlockTip(const CBlockIndex* pindexNew, bool fInitial
     }
 
     for (auto& p : Params().GetConsensus().llmqs) {
-        EnsureQuorumConnections(p.first, pindexNew);
+        EnsureQuorumConnections(p.first, pindexNew, connman);
     }
 }
 
-void CQuorumManager::EnsureQuorumConnections(Consensus::LLMQType llmqType, const CBlockIndex* pindexNew)
+void CQuorumManager::EnsureQuorumConnections(Consensus::LLMQType llmqType, const CBlockIndex* pindexNew, CConnman& connman)
 {
     const auto& params = Params().GetConsensus().llmqs.at(llmqType);
 
     auto myProTxHash = activeMasternodeInfo.proTxHash;
     auto lastQuorums = ScanQuorums(llmqType, pindexNew, (size_t)params.keepOldConnections);
 
-    auto connmanQuorumsToDelete = g_connman->GetMasternodeQuorums(llmqType);
+    auto connmanQuorumsToDelete = connman.GetMasternodeQuorums(llmqType);
 
     // don't remove connections for the currently in-progress DKG round
     int curDkgHeight = pindexNew->nHeight - (pindexNew->nHeight % params.dkgInterval);
@@ -193,14 +196,14 @@ void CQuorumManager::EnsureQuorumConnections(Consensus::LLMQType llmqType, const
             continue;
         }
 
-        CLLMQUtils::EnsureQuorumConnections(llmqType, quorum->pindexQuorum, myProTxHash, allowWatch);
+        CLLMQUtils::EnsureQuorumConnections(llmqType, quorum->pindexQuorum, myProTxHash, allowWatch, connman);
 
         connmanQuorumsToDelete.erase(quorum->qc.quorumHash);
     }
 
     for (auto& qh : connmanQuorumsToDelete) {
         LogPrint(BCLog::LLMQ, "CQuorumManager::%s -- removing masternodes quorum connections for quorum %s:\n", __func__, qh.ToString());
-        g_connman->RemoveMasternodeQuorumNodes(llmqType, qh);
+        connman.RemoveMasternodeQuorumNodes(llmqType, qh);
     }
 }
 
@@ -281,7 +284,7 @@ std::vector<CQuorumCPtr> CQuorumManager::ScanQuorums(Consensus::LLMQType llmqTyp
     const CBlockIndex* pindex;
     {
         LOCK(cs_main);
-        pindex = chainActive.Tip();
+        pindex = ::ChainActive().Tip();
     }
     return ScanQuorums(llmqType, pindex, maxCount);
 }
@@ -339,9 +342,9 @@ CQuorumCPtr CQuorumManager::GetQuorum(Consensus::LLMQType llmqType, const uint25
     CBlockIndex* pindexQuorum;
     {
         LOCK(cs_main);
-        auto quorumIt = mapBlockIndex.find(quorumHash);
+        auto quorumIt = ::BlockIndex().find(quorumHash);
 
-        if (quorumIt == mapBlockIndex.end()) {
+        if (quorumIt == ::BlockIndex().end()) {
             LogPrint(BCLog::LLMQ, "CQuorumManager::%s -- block %s not found", __func__, quorumHash.ToString());
             return nullptr;
         }

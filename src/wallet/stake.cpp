@@ -260,9 +260,6 @@ bool CStake::CreateCoinStake(unsigned int nBits, CMutableTransaction& txNew, uns
         }
     }
 
-    //Masternode payment
-    FillBlockPayee(txNew, 0, true, false);
-
     // Sign the input coins
     int nIn = 0;
     for (const auto pcoin : vwtxPrev) {

@@ -71,6 +71,7 @@ uint64_t GetRand(uint64_t nMax) noexcept;
 std::chrono::microseconds GetRandMicros(std::chrono::microseconds duration_max) noexcept;
 int GetRandInt(int nMax) noexcept;
 uint256 GetRandHash() noexcept;
+bool GetRandBool(double rate);
 
 /**
  * Gather entropy from various sources, feed it into the internal PRNG, and
@@ -182,6 +183,14 @@ public:
             uint64_t ret = randbits(bits);
             if (ret <= range) return ret;
         }
+    }
+
+    uint32_t rand32(uint32_t nMax) {
+        return rand32() % nMax;
+    }
+
+    uint32_t operator()(uint32_t nMax) {
+        return rand32(nMax);
     }
 
     /** Generate random bytes. */

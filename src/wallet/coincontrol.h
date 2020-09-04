@@ -15,6 +15,19 @@
 const int DEFAULT_MIN_DEPTH = 0;
 const int DEFAULT_MAX_DEPTH = 9999999;
 
+enum class CoinType
+{
+    ALL_COINS,
+    ONLY_FULLY_MIXED,
+    ONLY_READY_TO_MIX,
+    ONLY_NONDENOMINATED,
+    ONLY_MASTERNODE_COLLATERAL, // find masternode outputs including locked ones (use with caution)
+    ONLY_PRIVATESEND_COLLATERAL,
+    // Attributes
+    MIN_COIN_TYPE = ALL_COINS,
+    MAX_COIN_TYPE = ONLY_PRIVATESEND_COLLATERAL,
+};
+
 /** Coin Control Features. */
 class CCoinControl
 {
@@ -45,6 +58,8 @@ public:
     int m_min_depth = DEFAULT_MIN_DEPTH;
     //! Maximum chain depth value for coin availability
     int m_max_depth = DEFAULT_MAX_DEPTH;
+    //! Controls which types of coins are allowed to be used (default: ALL_COINS)
+    CoinType nCoinType;
 
     CCoinControl()
     {

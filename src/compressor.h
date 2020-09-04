@@ -39,8 +39,9 @@ uint64_t DecompressAmount(uint64_t nAmount);
  *  Other scripts up to 121 bytes require 1 byte + script length. Above
  *  that, scripts up to 16505 bytes require 2 bytes + script length.
  */
-struct ScriptCompression
+class CScriptCompressor
 {
+private:
     /**
      * make this static for now (there are only 6 special scripts defined)
      * this can potentially be extended together with a new nVersion for
@@ -49,8 +50,11 @@ struct ScriptCompression
      */
     static const unsigned int nSpecialScripts = 6;
 
+    CScript &script;
+public:
+    explicit CScriptCompressor(CScript &scriptIn) : script(scriptIn) { }
     template<typename Stream>
-    void Ser(Stream &s, const CScript& script) {
+    void Serialize(Stream &s) const {
         std::vector<unsigned char> compr;
         if (CompressScript(script, compr)) {
             s << MakeSpan(compr);
@@ -62,7 +66,7 @@ struct ScriptCompression
     }
 
     template<typename Stream>
-    void Unser(Stream &s, CScript& script) {
+    void Unserialize(Stream &s) {
         unsigned int nSize = 0;
         s >> VARINT(nSize);
         if (nSize < nSpecialScripts) {
@@ -83,24 +87,29 @@ struct ScriptCompression
     }
 };
 
-struct AmountCompression
+class CTxOutCompressor
 {
-    template<typename Stream, typename I> void Ser(Stream& s, I val)
-    {
-        s << VARINT(CompressAmount(val));
-    }
-    template<typename Stream, typename I> void Unser(Stream& s, I& val)
-    {
-        uint64_t v;
-        s >> VARINT(v);
-        val = DecompressAmount(v);
-    }
-};
+private:
+    CTxOut &txout;
 
-/** wrapper for CTxOut that provides a more compact serialization */
-struct TxOutCompression
-{
-    FORMATTER_METHODS(CTxOut, obj) { READWRITE(Using<AmountCompression>(obj.nValue), Using<ScriptCompression>(obj.scriptPubKey)); }
+public:
+    explicit CTxOutCompressor(CTxOut &txoutIn) : txout(txoutIn) { }
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action) {
+        if (!ser_action.ForRead()) {
+            uint64_t nVal = CompressAmount(txout.nValue);
+            READWRITE(VARINT(nVal));
+        } else {
+            uint64_t nVal = 0;
+            READWRITE(VARINT(nVal));
+            txout.nValue = DecompressAmount(nVal);
+    }
+        CScriptCompressor cscript(REF(txout.scriptPubKey));
+        READWRITE(cscript);
+    }
 };
 
 #endif // BITCOIN_COMPRESSOR_H

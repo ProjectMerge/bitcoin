@@ -337,7 +337,7 @@ int decode_string(argon2_context *ctx, const char *str, argon2_type type)
     ctx->free_cbk = NULL;
     ctx->flags = ARGON2_DEFAULT_FLAGS;
     /* On return, must have valid context */
-    validation_result = validate_inputs(ctx);
+    validation_result = validate_inputs_local(ctx);
     if (validation_result != ARGON2_OK) {
         return validation_result;
     }
@@ -382,7 +382,7 @@ int encode_string(char *dst, size_t dst_len, argon2_context *ctx,
         dst_len -= sb_len;                                                     \
     } while ((void)0, 0)
     const char* type_string = argon2_type2string(type, 0);
-    int validation_result = validate_inputs(ctx);
+    int validation_result = validate_inputs_local(ctx);
     if (!type_string) {
         return ARGON2_ENCODING_FAIL;
     }

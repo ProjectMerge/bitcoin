@@ -1,4 +1,4 @@
-packages:=boost openssl libevent
+packages:=boost openssl libevent gmp chia_bls
 
 qt_packages = zlib
 

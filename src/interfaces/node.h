@@ -21,6 +21,7 @@
 
 class BanMan;
 class CCoinControl;
+class CDeterministicMNList;
 class CFeeRate;
 class CNodeStats;
 class Coin;
@@ -265,8 +266,14 @@ public:
     //! Return pointer to internal chain interface, useful for testing.
     virtual NodeContext* context() { return nullptr; }
 
-    //! Register handler for additional UI signals
-    using NotifyAdditionalDataSyncProgressChangedFn = std::function<void(double nSyncProgress)>;
+    //! Register handler for masternode list update messages.
+    using NotifyMasternodeListChangedFn =
+        std::function<void(const CDeterministicMNList& newList)>;
+    virtual std::unique_ptr<Handler> handleNotifyMasternodeListChanged(NotifyMasternodeListChangedFn fn) = 0;
+
+    //! Register handler for additional data sync progress update messages.
+    using NotifyAdditionalDataSyncProgressChangedFn =
+        std::function<void(double nSyncProgress)>;
     virtual std::unique_ptr<Handler> handleNotifyAdditionalDataSyncProgressChanged(NotifyAdditionalDataSyncProgressChangedFn fn) = 0;
 };
 

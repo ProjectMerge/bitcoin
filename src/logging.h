@@ -31,13 +31,13 @@ struct CLogCategoryActive
 };
 
 namespace BCLog {
-    enum LogFlags : uint32_t {
+    enum LogFlags : uint64_t {
         NONE        = 0,
         NET         = (1 <<  0),
         TOR         = (1 <<  1),
         MEMPOOL     = (1 <<  2),
         HTTP        = (1 <<  3),
-        BENCH       = (1 <<  4),
+        BENCHMARK   = (1 <<  4),
         ZMQ         = (1 <<  5),
         WALLETDB    = (1 <<  6),
         RPC         = (1 <<  7),
@@ -46,7 +46,7 @@ namespace BCLog {
         SELECTCOINS = (1 << 10),
         REINDEX     = (1 << 11),
         CMPCTBLOCK  = (1 << 12),
-        RAND        = (1 << 13),
+        RANDOM      = (1 << 13),
         PRUNE       = (1 << 14),
         PROXY       = (1 << 15),
         MEMPOOLREJ  = (1 << 16),
@@ -54,13 +54,25 @@ namespace BCLog {
         COINDB      = (1 << 18),
         QT          = (1 << 19),
         LEVELDB     = (1 << 20),
+
+        //! existing legacy layer
         VALIDATION  = (1 << 21),
         POS         = (1 << 22),
         MASTERNODE  = (1 << 23),
         MNPAYMENTS  = (1 << 24),
         MNSYNC      = (1 << 25),
         SPORK       = (1 << 26),
-        ALL         = ~(uint32_t)0,
+
+        //! deterministic layer
+        CHAINLOCKS  = ((uint64_t)1 << 32),
+        LLMQ        = ((uint64_t)1 << 33),
+        LLMQ_DKG    = ((uint64_t)1 << 34),
+        LLMQ_SIGS   = ((uint64_t)1 << 35),
+        NETCONN     = ((uint64_t)1 << 36),
+
+        NET_NETCONN = NET | NETCONN, // use this to have something logged in NET and NETCONN as well
+
+        ALL         = ~(uint64_t)0,
     };
 
     class Logger

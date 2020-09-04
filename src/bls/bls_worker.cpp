@@ -6,7 +6,7 @@
 #include <hash.h>
 #include <serialize.h>
 
-#include <util.h>
+#include <util/system.h>
 
 template <typename T>
 bool VerifyVectorHelper(const std::vector<T>& vec, size_t start, size_t count)
@@ -63,7 +63,7 @@ void CBLSWorker::Start()
     int workerCount = std::thread::hardware_concurrency() / 2;
     workerCount = std::max(std::min(1, workerCount), 4);
     workerPool.resize(workerCount);
-    RenameThreadPool(workerPool, "dash-bls-worker");
+    RenameThreadPool(workerPool, "merge-bls-worker");
 }
 
 void CBLSWorker::Stop()

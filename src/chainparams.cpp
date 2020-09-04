@@ -19,6 +19,16 @@
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
 
+static void DEBUG_PRINT(std::string envname, CBlock block) {
+    unsigned char copyStorage[80];
+    memcpy(copyStorage, reinterpret_cast<char*>(&block), 80);
+    printf("%s:\n", envname.c_str());
+    for(int i=0; i<80; i++) {
+       printf("%02hhx", copyStorage[i]);
+    }
+    printf("\n");
+}
+
 static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
     CMutableTransaction txNew;
@@ -51,14 +61,119 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
  *     CTxOut(nValue=50.00000000, scriptPubKey=0x5F1DF16B2B704C8A578D0B)
  *   vMerkleTree: 4a5e1e
  */
-static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward, bool fTestNet = false)
+static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
-    const char* pszTimestamp = !fTestNet ? "ABC News 24/DEC/2018 Trump's Treasury Secretary to convene 'Plunge Protection Team' to deal with Wall Street rout" :
-                                           "Zero Hedge Wed, 03/06/2019 - 23:45 Civil War Would Erupt If Green New Deal Socialists Actually Get What They";
-    const CScript genesisOutputScript = !fTestNet ? CScript() << ParseHex("04c10e83b2703ccf322f7dbd62dd5855ac7c10bd055814ce121ba32607d573b8810c02c0582aed05b4deb9c4b77b26d92428c61256cd42774babea0a073b2ed0c9") << OP_CHECKSIG :
-                                                    CScript() << ParseHex("0469b0149714a501f21298ee9b559be519f79c35194ba5e143f55b8036972bcf7d0f6c3e5479d0e51b013628e0f0c5e0ea7c090fdaad6cf0bf686c4a35a07f5ecf") << OP_CHECKSIG;
+    const char* pszTimestamp = "ABC News 24/DEC/2018 Trump's Treasury Secretary to convene 'Plunge Protection Team' to deal with Wall Street rout";
+    const CScript genesisOutputScript = CScript() << ParseHex("04c10e83b2703ccf322f7dbd62dd5855ac7c10bd055814ce121ba32607d573b8810c02c0582aed05b4deb9c4b77b26d92428c61256cd42774babea0a073b2ed0c9") << OP_CHECKSIG;
     return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward);
 }
+
+void CChainParams::UpdateVersionBitsParameters(Consensus::DeploymentPos d, int64_t nStartTime, int64_t nTimeout, int64_t nWindowSize, int64_t nThreshold)
+{
+    consensus.vDeployments[d].nStartTime = nStartTime;
+    consensus.vDeployments[d].nTimeout = nTimeout;
+    if (nWindowSize != -1) {
+            consensus.vDeployments[d].nWindowSize = nWindowSize;
+    }
+    if (nThreshold != -1) {
+            consensus.vDeployments[d].nThreshold = nThreshold;
+    }
+}
+
+void CChainParams::UpdateDIP3Parameters(int nActivationHeight, int nEnforcementHeight)
+{
+    consensus.DIP0003Height = nActivationHeight;
+    consensus.DIP0003EnforcementHeight = nEnforcementHeight;
+}
+
+void CChainParams::UpdateLLMQChainLocks(Consensus::LLMQType llmqType) {
+    consensus.llmqTypeChainLocks = llmqType;
+}
+
+void CChainParams::UpdateLLMQTestParams(int size, int threshold) {
+    auto& params = consensus.llmqs.at(Consensus::LLMQ_TEST);
+    params.size = size;
+    params.minSize = threshold;
+    params.threshold = threshold;
+    params.dkgBadVotesThreshold = threshold;
+}
+
+//! for testnet/adhoc use only
+static Consensus::LLMQParams llmq5_60 = {
+        .type = Consensus::LLMQ_5_60,
+        .name = "llmq_5_60",
+        .size = 3,
+        .minSize = 3,
+        .threshold = 3,
+
+        .dkgInterval = 48, // two DKG per hour
+        .dkgPhaseBlocks = 2,
+        .dkgMiningWindowStart = 10, // dkgPhaseBlocks * 5 = after finalization
+        .dkgMiningWindowEnd = 18,
+        .dkgBadVotesThreshold = 5,
+
+        .signingActiveQuorumCount = 2, // just a few ones to allow easier testing
+
+        .keepOldConnections = 2,
+        .recoveryMembers = 2,
+};
+
+static Consensus::LLMQParams llmq50_60 = {
+        .type = Consensus::LLMQ_50_60,
+        .name = "llmq_50_60",
+        .size = 50,
+        .minSize = 40,
+        .threshold = 30,
+
+        .dkgInterval = 24, // one DKG per hour
+        .dkgPhaseBlocks = 2,
+        .dkgMiningWindowStart = 10, // dkgPhaseBlocks * 5 = after finalization
+        .dkgMiningWindowEnd = 18,
+        .dkgBadVotesThreshold = 40,
+
+        .signingActiveQuorumCount = 24, // a full day worth of LLMQs
+
+        .keepOldConnections = 25,
+        .recoveryMembers = 25,
+};
+
+static Consensus::LLMQParams llmq400_60 = {
+        .type = Consensus::LLMQ_400_60,
+        .name = "llmq_400_60",
+        .size = 400,
+        .minSize = 300,
+        .threshold = 240,
+
+        .dkgInterval = 24 * 12, // one DKG every 12 hours
+        .dkgPhaseBlocks = 4,
+        .dkgMiningWindowStart = 20, // dkgPhaseBlocks * 5 = after finalization
+        .dkgMiningWindowEnd = 28,
+        .dkgBadVotesThreshold = 300,
+
+        .signingActiveQuorumCount = 4, // two days worth of LLMQs
+
+        .keepOldConnections = 5,
+        .recoveryMembers = 100,
+};
+
+static Consensus::LLMQParams llmq400_85 = {
+        .type = Consensus::LLMQ_400_85,
+        .name = "llmq_400_85",
+        .size = 400,
+        .minSize = 350,
+        .threshold = 340,
+
+        .dkgInterval = 24 * 24, // one DKG every 24 hours
+        .dkgPhaseBlocks = 4,
+        .dkgMiningWindowStart = 20, // dkgPhaseBlocks * 5 = after finalization
+        .dkgMiningWindowEnd = 48, // give it a larger mining window to make sure it is mined
+        .dkgBadVotesThreshold = 300,
+
+        .signingActiveQuorumCount = 4, // four days worth of LLMQs
+
+        .keepOldConnections = 5,
+        .recoveryMembers = 100,
+};
 
 /**
  * Main network
@@ -97,6 +212,12 @@ public:
         consensus.nMasternodeMinimumConfirmations = 15;
         consensus.nCollateralAmount = 10000 * COIN;
 
+        //! dip activation heights
+        consensus.DIP0003Height = 1028160;
+        consensus.DIP0003EnforcementHeight = 1047200;
+        consensus.DIP0003EnforcementHash = uint256S("0000000000000000000000000000000000000000000000000000000000000000");
+        consensus.DIP0008Height = 1028160;
+
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].bit = 28;
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].nStartTime = 1199145601; // January 1, 2008
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].nTimeout = 1230767999; // December 31, 2008
@@ -123,6 +244,8 @@ public:
 
         genesis = CreateGenesisBlock(1545670000, 1997235, 0x1e0ffff0, 1, 0 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
+        // DEBUG_PRINT(strNetworkID, genesis);
+        // printf("GENTX: %s\n", genesis.vtx[0]->ToString().c_str());
         assert(consensus.hashGenesisBlock == uint256S("0x00000e44bca505863831d65cf302884eaf6eed296dc59088e89324bccf5d9dca"));
         assert(genesis.hashMerkleRoot == uint256S("0x2b77d68f79c8c45b77335607c928533950da763a4a16c34555bdf8446aa6cc1c"));
 
@@ -143,12 +266,28 @@ public:
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_main, pnSeed6_main + ARRAYLEN(pnSeed6_main));
 
+        // long living quorum params
+        consensus.llmqs[Consensus::LLMQ_50_60] = llmq50_60;
+        consensus.llmqs[Consensus::LLMQ_400_60] = llmq400_60;
+        consensus.llmqs[Consensus::LLMQ_400_85] = llmq400_85;
+        consensus.llmqTypeChainLocks = Consensus::LLMQ_400_60;
+        consensus.llmqTypeInstantSend = Consensus::LLMQ_50_60;
+
+        fMiningRequiresPeers = true;
         fDefaultConsistencyChecks = false;
         fRequireStandard = true;
         m_is_test_chain = false;
         m_is_mockable_chain = false;
+        fRequireRoutableExternalIP = true;
+        fMineBlocksOnDemand = false;
+        fAllowMultipleAddressesFromGroup = false;
+        fAllowMultiplePorts = false;
+        nLLMQConnectionRetryTimeout = 60;
         nFulfilledRequestExpireTime = 60*60;
-        strSporkKey = "04b86d4321e8aa926be7d366057ba41dbad32fdc7e5efa78d284ffc9d45ea63c796d58dc2f9050d9c83006bc7bce31d79f7bc84a59a4472718e245dccfe763b435";
+
+        vSporkAddresses = {"MDjdc9XmLgUcrt1Y6nMcaWfdo7ZvTQMKgV"};
+        nMinSporkKeys = 1;
+        fBIP9CheckMasternodesUpgraded = true;
 
         checkpointData = {
             {
@@ -190,19 +329,19 @@ public:
         consensus.CSVHeight = std::numeric_limits<int>::max();
         consensus.SegwitHeight = std::numeric_limits<int>::max();
         consensus.MinBIP9WarningHeight = std::numeric_limits<int>::max();
-        consensus.powLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+        consensus.powLimit = uint256S("007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 10 * 60;
         consensus.nPowTargetSpacing =  1 * 60;
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
-        consensus.nLastPoWBlock = 300;
+        consensus.nLastPoWBlock = 150;
         consensus.nMaxReorganizationDepth = 100;
         consensus.nRuleChangeActivationThreshold = 1916;
         consensus.nMinerConfirmationWindow = 2016;
 
         //! proof of stake / masternode variables
         consensus.posLimit = uint256S("000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
-        consensus.nMinStakeAge = 60 * 60;
+        consensus.nMinStakeAge = 15 * 60;
         consensus.nMaxHashDrift = 45;
         consensus.nPosTargetSpacing = consensus.nPowTargetSpacing;
         consensus.nPosTargetTimespan = consensus.nPowTargetTimespan;
@@ -211,31 +350,44 @@ public:
         consensus.nMasternodeMinimumConfirmations = 15;
         consensus.nCollateralAmount = 10000 * COIN;
 
+        //! dip activation heights
+        consensus.DIP0003Height = 250;
+        consensus.DIP0003EnforcementHeight = 1500;
+        consensus.DIP0003EnforcementHash = uint256S("0000000000000000000000000000000000000000000000000000000000000000");
+        consensus.DIP0008Height = 3000;
+
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0000000000000000000000000000000000000000000000000000000000000000");
 
         // By default assume that the signatures in ancestors of this block are valid.
         consensus.defaultAssumeValid = uint256S("0000000000000000000000000000000000000000000000000000000000000000");
 
-        pchMessageStart[0] = 0xf3;
-        pchMessageStart[1] = 0xfe;
-        pchMessageStart[2] = 0xef;
-        pchMessageStart[3] = 0x3f;
+        pchMessageStart[0] = 0x28;
+        pchMessageStart[1] = 0xd6;
+        pchMessageStart[2] = 0x87;
+        pchMessageStart[3] = 0xe2;
         nDefaultPort = 62000;
         nPruneAfterHeight = 1000;
         m_assumed_blockchain_size = 1;
         m_assumed_chain_state_size = 1;
 
-        genesis = CreateGenesisBlock(1596132246, 1543987, 0x1e0ffff0, 1, 0 * COIN, true);
+        genesis = CreateGenesisBlock(1604300000, 512, 0x1f7fffff, 1, 0 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("0x000006720fa94c5b23d310b886feecccd14cd7465e0b2bb41651afa1c81498a0"));
-        assert(genesis.hashMerkleRoot == uint256S("0x705ea6c69f9003f9f45e9e02f8d541a98a0edd231de7e1a25b937a5b21085096"));
+        // DEBUG_PRINT(strNetworkID, genesis);
+        // printf("GENTX: %s\n", genesis.vtx[0]->ToString().c_str());
+        assert(consensus.hashGenesisBlock == uint256S("0x001d51cce66fb7d5ecfb11a093af153573bbefb1cfbb2612f5a684d16258da71"));
+        assert(genesis.hashMerkleRoot == uint256S("0x2b77d68f79c8c45b77335607c928533950da763a4a16c34555bdf8446aa6cc1c"));
 
         vFixedSeeds.clear();
         vSeeds.clear();
         // nodes with support for servicebits filtering should be at the top
         vSeeds.emplace_back("mergetest-seed.mergeseeders.com");
         vSeeds.emplace_back("mergetest-seed.mergeseeders.org");
+
+        // long living quorum params
+        consensus.llmqs[Consensus::LLMQ_5_60] = llmq5_60;
+        consensus.llmqTypeChainLocks = Consensus::LLMQ_5_60;
+        consensus.llmqTypeInstantSend = Consensus::LLMQ_5_60;
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,80);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,83);
@@ -247,22 +399,26 @@ public:
 
         vFixedSeeds = std::vector<SeedSpec6>(pnSeed6_test, pnSeed6_test + ARRAYLEN(pnSeed6_test));
 
+        fMiningRequiresPeers = false;
         fDefaultConsistencyChecks = false;
         fRequireStandard = false;
         m_is_test_chain = true;
         m_is_mockable_chain = false;
+        fRequireRoutableExternalIP = true;
+        fMineBlocksOnDemand = false;
+        fAllowMultipleAddressesFromGroup = true;
+        fAllowMultiplePorts = true;
+        nLLMQConnectionRetryTimeout = 60;
+        nFulfilledRequestExpireTime = 60*60;
+
+        vSporkAddresses = {"ZGMcMrvFriyuFWqhTXyhuuE3o6JhgXyzDz"};
+        nMinSporkKeys = 1;
+        fBIP9CheckMasternodesUpgraded = true;
 
         checkpointData = {
-            {
-                {546, uint256S("000000002a936ca763904c3c35fce2f3556c559c0214345d31b1bcebf76acb70")},
-            }
         };
 
         chainTxData = ChainTxData{
-            // Data from RPC: getchaintxstats 4096 000000000000056c49030c174179b52a928c870e6e8a822c75973b7970cfbd01
-            /* nTime    */ 1585561140,
-            /* nTxCount */ 13483,
-            /* dTxRate  */ 0.08523187013249722,
         };
     }
 };
@@ -311,14 +467,17 @@ public:
 
         UpdateActivationParametersFromArgs(args);
 
-        genesis = CreateGenesisBlock(1600303622, 3, 0x207fffff, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1600303622, 3, 0x207fffff, 1, 0 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("0x18a74d33ea727fe89d75d60916a69c475eff0b87c9c430aa50ca42d73056c389"));
-        assert(genesis.hashMerkleRoot == uint256S("0xbab8d1acf414daab8e5d35c85563d5c13c99d5524a6d019e825ca7b86762e8aa"));
+        // DEBUG_PRINT(strNetworkID, genesis);
+        // printf("GENTX: %s\n", genesis.vtx[0]->ToString().c_str());
+        assert(consensus.hashGenesisBlock == uint256S("0x4a31c8d968d40a2fca51d7e82cc9cbe9ef8a72b1813763c7d0b2acef195ffcd3"));
+        assert(genesis.hashMerkleRoot == uint256S("0x2b77d68f79c8c45b77335607c928533950da763a4a16c34555bdf8446aa6cc1c"));
 
         vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
         vSeeds.clear();      //!< Regtest mode doesn't have any DNS seeds.
 
+        fMiningRequiresPeers = false;
         fDefaultConsistencyChecks = true;
         fRequireStandard = true;
         m_is_test_chain = true;

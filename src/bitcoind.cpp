@@ -12,7 +12,6 @@
 #include <compat.h>
 #include <init.h>
 #include <interfaces/chain.h>
-#include <masternode/masternodeconfig.h>
 #include <node/context.h>
 #include <noui.h>
 #include <shutdown.h>
@@ -96,13 +95,6 @@ static bool AppInit(int argc, char* argv[])
             if (!IsSwitchChar(argv[i][0])) {
                 return InitError(strprintf("Command line contains unexpected token '%s', see bitcoind -h for a list of options.\n", argv[i]));
             }
-        }
-
-        // parse masternode.conf
-        std::string strErr;
-        if (!masternodeConfig.read(strErr)) {
-            fprintf(stderr, "Error reading masternode configuration file: %s\n", strErr.c_str());
-            return false;
         }
 
         // -server defaults to true for bitcoind but not for the GUI so do this here

@@ -5,6 +5,10 @@
 #include <bloom.h>
 
 #include <primitives/transaction.h>
+#include <evo/specialtx.h>
+#include <evo/providertx.h>
+#include <evo/cbtx.h>
+#include <llmq/quorums_commitment.h>
 #include <hash.h>
 #include <script/script.h>
 #include <script/standard.h>

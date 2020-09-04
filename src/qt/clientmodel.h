@@ -5,6 +5,8 @@
 #ifndef BITCOIN_QT_CLIENTMODEL_H
 #define BITCOIN_QT_CLIENTMODEL_H
 
+#include <evo/deterministicmns.h>
+
 #include <QObject>
 #include <QDateTime>
 
@@ -12,6 +14,7 @@
 #include <memory>
 
 class BanTableModel;
+class DeterministicMNList;
 class OptionsModel;
 class PeerTableModel;
 
@@ -58,7 +61,11 @@ public:
     int getNumConnections(unsigned int flags = CONNECTIONS_ALL) const;
     int getHeaderTipHeight() const;
     int64_t getHeaderTipTime() const;
-    QString getMasternodeCountString() const;
+
+    //! Masternode list functions
+    void setMasternodeList(const CDeterministicMNList& mnList);
+    CDeterministicMNList getMasternodeList() const;
+    void refreshMasternodeList();
 
     //! Returns enum BlockSource of the current importing/syncing state
     enum BlockSource getBlockSource() const;
@@ -87,6 +94,7 @@ private:
     std::unique_ptr<interfaces::Handler> m_handler_banned_list_changed;
     std::unique_ptr<interfaces::Handler> m_handler_notify_block_tip;
     std::unique_ptr<interfaces::Handler> m_handler_notify_header_tip;
+    std::unique_ptr<interfaces::Handler> m_handler_notify_masternodelist_changed;
     std::unique_ptr<interfaces::Handler> m_handler_notify_additional_data_sync_progress_changed;
     OptionsModel *optionsModel;
     PeerTableModel *peerTableModel;
@@ -97,6 +105,9 @@ private:
 
     //! A thread to interact with m_node asynchronously
     QThread* const m_thread;
+
+    mutable RecursiveMutex cs_mnlinst;
+    CDeterministicMNList mnListCached;
 
     void subscribeToCoreSignals();
     void unsubscribeFromCoreSignals();
@@ -117,9 +128,10 @@ Q_SIGNALS:
     // Show progress dialog e.g. for verifychain
     void showProgress(const QString &title, int nProgress);
 
+    void masternodeListChanged() const;
+
 public Q_SLOTS:
     void updateTimer();
-    void updateMnTimer();
     void updateNumConnections(int numConnections);
     void updateNetworkActive(bool networkActive);
     void updateAlert();

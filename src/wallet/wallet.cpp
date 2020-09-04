@@ -35,6 +35,10 @@
 #include <wallet/fees.h>
 #include <wallet/rpcwallet.h>
 
+#include <evo/providertx.h>
+
+#include <llmq/quorums_chainlocks.h>
+
 #include <algorithm>
 #include <assert.h>
 
@@ -4257,7 +4261,7 @@ bool CWalletTx::IsImmatureCoinBase() const
 
 bool CWalletTx::IsImmatureCoinStake() const
 {
-    return (IsCoinStake() && GetBlocksToMaturity() > 0);
+    return (IsCoinStake() && GetBlocksToMaturity() > COINBASE_MATURITY);
 }
 
 std::vector<OutputGroup> CWallet::GroupOutputs(const std::vector<COutput>& outputs, bool single_coin) const {

@@ -19,9 +19,17 @@ class CBlockIndex;
 struct CBlockLocator;
 class CConnman;
 class CValidationInterface;
+class CDeterministicMNList;
+class CDeterministicMNListDiff;
 class uint256;
 class CScheduler;
 enum class MemPoolRemovalReason;
+class CDeterministicMNList;
+class CDeterministicMNListDiff;
+
+namespace llmq {
+    class CChainLockSig;
+} // namespace llmq
 
 // These functions dispatch to one or all registered wallets
 
@@ -172,6 +180,13 @@ protected:
      * Notifies listeners that a block which builds directly on our current tip
      * has been received and connected to the headers tree, though not validated yet */
     virtual void NewPoWValidBlock(const CBlockIndex *pindex, const std::shared_ptr<const CBlock>& block) {};
+    virtual void AcceptedBlockHeader(const CBlockIndex *pindexNew) {}
+    virtual void NotifyHeaderTip(const CBlockIndex *pindexNew, bool fInitialDownload) {}
+    virtual void NotifyChainLock(const CBlockIndex* pindex, const llmq::CChainLockSig& clsig) {}
+    virtual void NotifyMasternodeListChanged(bool undo, const CDeterministicMNList& oldMNList, const CDeterministicMNListDiff& diff) {}
+    virtual void NotifyTransactionLock(const CTransaction &tx) {}
+    virtual void SyncTransaction(const CTransaction &tx, const CBlockIndex *pindex, int posInBlock) {}
+
     friend class CMainSignals;
 };
 
@@ -204,6 +219,12 @@ public:
     void ChainStateFlushed(const CBlockLocator &);
     void BlockChecked(const CBlock&, const BlockValidationState&);
     void NewPoWValidBlock(const CBlockIndex *, const std::shared_ptr<const CBlock>&);
+    void AcceptedBlockHeader(const CBlockIndex *);
+    void NotifyChainLock(const CBlockIndex* pindex, const llmq::CChainLockSig& clsig);
+    void NotifyHeaderTip(const CBlockIndex *, bool);
+    void NotifyMasternodeListChanged(bool, const CDeterministicMNList&, const CDeterministicMNListDiff&);
+    void NotifyTransactionLock(const CTransaction&);
+    void SyncTransaction(const CTransaction&, const CBlockIndex *, int);
 };
 
 CMainSignals& GetMainSignals();

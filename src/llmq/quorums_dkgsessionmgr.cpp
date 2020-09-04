@@ -1,4 +1,5 @@
 // Copyright (c) 2018-2019 The Dash Core developers
+// Copyright (c) 2018-2020 The Merge Core developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -10,7 +11,7 @@
 
 #include <chainparams.h>
 #include <net_processing.h>
-#include <spork.h>
+#include <masternode/spork.h>
 #include <validation.h>
 
 namespace llmq
@@ -21,14 +22,15 @@ CDKGSessionManager* quorumDKGSessionManager;
 static const std::string DB_VVEC = "qdkg_V";
 static const std::string DB_SKCONTRIB = "qdkg_S";
 
-CDKGSessionManager::CDKGSessionManager(CDBWrapper& _llmqDb, CBLSWorker& _blsWorker) :
+CDKGSessionManager::CDKGSessionManager(CDBWrapper& _llmqDb, CBLSWorker& _blsWorker, CConnman &_connman) :
     llmqDb(_llmqDb),
-    blsWorker(_blsWorker)
+    blsWorker(_blsWorker),
+    connman(_connman)
 {
     for (const auto& qt : Params().GetConsensus().llmqs) {
         dkgSessionHandlers.emplace(std::piecewise_construct,
                 std::forward_as_tuple(qt.first),
-                std::forward_as_tuple(qt.second, blsWorker, *this));
+                std::forward_as_tuple(qt.second, blsWorker, *this, connman));
     }
 }
 
@@ -86,7 +88,7 @@ void CDKGSessionManager::ProcessMessage(CNode* pfrom, const std::string& strComm
         return;
     }
 
-    if (vRecv.size() < 1) {
+    if (vRecv.empty()) {
         LOCK(cs_main);
         Misbehaving(pfrom->GetId(), 100);
         return;

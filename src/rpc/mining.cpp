@@ -34,6 +34,10 @@
 #include <versionbitsinfo.h>
 #include <warnings.h>
 
+#include <evo/deterministicmns.h>
+#include <evo/specialtx.h>
+#include <evo/cbtx.h>
+
 #include <memory>
 #include <stdint.h>
 

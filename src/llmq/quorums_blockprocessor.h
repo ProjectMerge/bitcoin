@@ -26,22 +26,20 @@ class CQuorumBlockProcessor
 {
 private:
     CEvoDB& evoDb;
-
+    CConnman& connman;
     // TODO cleanup
-    CCriticalSection minableCommitmentsCs;
+    RecursiveMutex minableCommitmentsCs;
     std::map<std::pair<Consensus::LLMQType, uint256>, uint256> minableCommitmentsByQuorum;
     std::map<uint256, CFinalCommitment> minableCommitments;
 
     std::unordered_map<std::pair<Consensus::LLMQType, uint256>, bool, StaticSaltedHasher> hasMinedCommitmentCache;
 
 public:
-    explicit CQuorumBlockProcessor(CEvoDB& _evoDb) : evoDb(_evoDb) {}
-
-    void UpgradeDB();
+    explicit CQuorumBlockProcessor(CEvoDB& _evoDb, CConnman& _connman) : evoDb(_evoDb), connman(_connman){}
 
     void ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv, CConnman& connman);
 
-    bool ProcessBlock(const CBlock& block, const CBlockIndex* pindex, CValidationState& state);
+    bool ProcessBlock(const CBlock& block, const CBlockIndex* pindex, BlockValidationState& state);
     bool UndoBlock(const CBlock& block, const CBlockIndex* pindex);
 
     void AddMinableCommitment(const CFinalCommitment& fqc);
@@ -57,8 +55,8 @@ public:
     std::map<Consensus::LLMQType, std::vector<const CBlockIndex*>> GetMinedAndActiveCommitmentsUntilBlock(const CBlockIndex* pindex);
 
 private:
-    bool GetCommitmentsFromBlock(const CBlock& block, const CBlockIndex* pindex, std::map<Consensus::LLMQType, CFinalCommitment>& ret, CValidationState& state);
-    bool ProcessCommitment(int nHeight, const uint256& blockHash, const CFinalCommitment& qc, CValidationState& state);
+    bool GetCommitmentsFromBlock(const CBlock& block, const CBlockIndex* pindex, std::map<Consensus::LLMQType, CFinalCommitment>& ret, BlockValidationState& state);
+    bool ProcessCommitment(int nHeight, const uint256& blockHash, const CFinalCommitment& qc, BlockValidationState& state);
     bool IsMiningPhase(Consensus::LLMQType llmqType, int nHeight);
     bool IsCommitmentRequired(Consensus::LLMQType llmqType, int nHeight);
     uint256 GetQuorumBlockHash(Consensus::LLMQType llmqType, int nHeight);

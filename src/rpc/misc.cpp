@@ -44,16 +44,14 @@ static UniValue spork(const JSONRPCRequest& request)
         std:: string strCommand = request.params[0].get_str();
         if (strCommand == "show") {
             UniValue ret(UniValue::VOBJ);
-            for (int nSporkID = Spork::SPORK_START; nSporkID <= Spork::SPORK_END; nSporkID++) {
-                if (sporkManager.GetSporkValue(nSporkID) == -1) continue;
-                ret.pushKV(sporkManager.GetSporkNameByID(nSporkID), sporkManager.GetSporkValue(nSporkID));
+            for (const auto& sporkDef : sporkDefs) {
+                ret.pushKV(sporkDef.name, sporkManager.GetSporkValue(sporkDef.sporkId));
             }
             return ret;
         } else if(strCommand == "active"){
             UniValue ret(UniValue::VOBJ);
-            for (int nSporkID = Spork::SPORK_START; nSporkID <= Spork::SPORK_END; nSporkID++) {
-                if (sporkManager.GetSporkValue(nSporkID) == -1) continue;
-                ret.pushKV(sporkManager.GetSporkNameByID(nSporkID), sporkManager.IsSporkActive(nSporkID));
+            for (const auto& sporkDef : sporkDefs) {
+                ret.pushKV(sporkDef.name, sporkManager.IsSporkActive(sporkDef.sporkId));
             }
             return ret;
         }
@@ -93,7 +91,7 @@ static UniValue spork(const JSONRPCRequest& request)
         int64_t nValue = request.params[1].get_int64();
 
         //broadcast new spork
-        if(sporkManager.UpdateSpork(nSporkID, nValue, *g_rpc_node->connman)){
+        if(sporkManager.UpdateSpork((SporkId)nSporkID, nValue, *g_rpc_node->connman)){
             return "success";
         } else {
             throw std::runtime_error(
@@ -109,7 +107,52 @@ static UniValue spork(const JSONRPCRequest& request)
                 + HelpExampleRpc("spork", "\"SPORK_2_INSTANTSEND_ENABLED\", 4070908800"));
         }
     }
-    return false;
+}
+
+static UniValue mnsync(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 1)
+        throw std::runtime_error(
+            RPCHelpMan{"mnsync",
+                "\nReturns the sync status, updates to the next step or resets it entirely.\n",
+                {
+                    {"command", RPCArg::Type::STR, RPCArg::Optional::NO, "The command to issue (status|next|reset)"}
+                },
+                RPCResult{
+                    RPCResult::Type::STR, "result", "Result"},
+                RPCExamples{
+                    HelpExampleCli("mnsync", "status")
+                    + HelpExampleRpc("mnsync", "status")
+                }
+            }.ToString());
+
+    std::string strMode = request.params[0].get_str();
+
+    if(strMode == "status") {
+        UniValue objStatus(UniValue::VOBJ);
+        objStatus.pushKV("AssetID", masternodeSync.GetAssetID());
+        objStatus.pushKV("AssetName", masternodeSync.GetAssetName());
+        objStatus.pushKV("AssetStartTime", masternodeSync.GetAssetStartTime());
+        objStatus.pushKV("Attempt", masternodeSync.GetAttempt());
+        objStatus.pushKV("IsBlockchainSynced", masternodeSync.IsBlockchainSynced());
+        objStatus.pushKV("IsSynced", masternodeSync.IsSynced());
+        objStatus.pushKV("IsFailed", masternodeSync.IsFailed());
+        return objStatus;
+    }
+
+    if(strMode == "next")
+    {
+        masternodeSync.SwitchToNextAsset(*g_rpc_node->connman);
+        return "sync updated to " + masternodeSync.GetAssetName();
+    }
+
+    if(strMode == "reset")
+    {
+        masternodeSync.Reset();
+        masternodeSync.SwitchToNextAsset(*g_rpc_node->connman);
+        return "success";
+    }
+    return "failure";
 }
 
 static UniValue validateaddress(const JSONRPCRequest& request)
@@ -692,6 +735,7 @@ static const CRPCCommand commands[] =
     { "util",               "signmessagewithprivkey", &signmessagewithprivkey, {"privkey","message"} },
 
     { "merge",              "spork",                  &spork,                  {"mode"} },
+    { "merge",              "mnsync",                 &mnsync,                 {"mode"} },
 
     /* Not shown in help */
     { "hidden",             "setmocktime",            &setmocktime,            {"timestamp"}},

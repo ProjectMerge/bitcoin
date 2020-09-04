@@ -21,7 +21,7 @@
 
 class CBlock;
 class CBlockIndex;
-class CValidationState;
+class TxValidationState;
 
 namespace llmq
 {
@@ -30,12 +30,16 @@ namespace llmq
 
 class CDeterministicMNState
 {
+private:
+    int nPoSeBanHeight{-1};
+
+    friend class CDeterministicMNStateDiff;
+
 public:
     int nRegisteredHeight{-1};
     int nLastPaidHeight{0};
     int nPoSePenalty{0};
     int nPoSeRevivedHeight{-1};
-    int nPoSeBanHeight{-1};
     uint16_t nRevocationReason{CProUpRevTx::REASON_NOT_SPECIFIED};
 
     // the block hash X blocks after registration, used in quorum calculations
@@ -44,9 +48,9 @@ public:
     // please note that this is NOT a double-sha256 hash
     uint256 confirmedHashWithProRegTxHash;
 
-    CKeyID keyIDOwner;
+    WitnessV0KeyHash keyIDOwner;
     CBLSLazyPublicKey pubKeyOperator;
-    CKeyID keyIDVoting;
+    WitnessV0KeyHash keyIDVoting;
     CService addr;
     CScript scriptPayout;
     CScript scriptOperatorPayout;
@@ -97,9 +101,23 @@ public:
     }
     void BanIfNotBanned(int height)
     {
-        if (nPoSeBanHeight == -1) {
+        if (!IsBanned()) {
             nPoSeBanHeight = height;
         }
+    }
+    int GetBannedHeight() const
+    {
+        return nPoSeBanHeight;
+    }
+    bool IsBanned() const
+    {
+        return nPoSeBanHeight != -1;
+    }
+    void Revive(int nRevivedHeight)
+    {
+        nPoSePenalty = 0;
+        nPoSeBanHeight = -1;
+        nPoSeRevivedHeight = nRevivedHeight;
     }
     void UpdateConfirmedHash(const uint256& _proTxHash, const uint256& _confirmedHash)
     {
@@ -193,7 +211,7 @@ private:
 
 public:
     CDeterministicMN() = delete; // no default constructor, must specify internalId
-    CDeterministicMN(uint64_t _internalId) : internalId(_internalId)
+    explicit CDeterministicMN(uint64_t _internalId) : internalId(_internalId)
     {
         // only non-initial values
         assert(_internalId != std::numeric_limits<uint64_t>::max());
@@ -561,12 +579,12 @@ public:
         s << addedMNs;
         WriteCompactSize(s, updatedMNs.size());
         for (const auto& p : updatedMNs) {
-            WriteVarInt(s, p.first);
+            WriteVarInt<Stream, VarIntMode::DEFAULT, uint32_t>(s, p.first);
             s << p.second;
         }
         WriteCompactSize(s, removedMns.size());
         for (const auto& p : removedMns) {
-            WriteVarInt(s, p);
+            WriteVarInt<Stream, VarIntMode::DEFAULT, uint32_t>(s, p);
         }
     }
 
@@ -582,13 +600,13 @@ public:
         tmp = ReadCompactSize(s);
         for (size_t i = 0; i < tmp; i++) {
             CDeterministicMNStateDiff diff;
-            tmp2 = ReadVarInt<Stream, uint64_t>(s);
+            tmp2 = ReadVarInt<Stream, VarIntMode::DEFAULT, uint64_t>(s);
             s >> diff;
             updatedMNs.emplace(tmp2, std::move(diff));
         }
         tmp = ReadCompactSize(s);
         for (size_t i = 0; i < tmp; i++) {
-            tmp2 = ReadVarInt<Stream, uint64_t>(s);
+            tmp2 = ReadVarInt<Stream, VarIntMode::DEFAULT, uint64_t>(s);
             removedMns.emplace(tmp2);
         }
     }
@@ -641,7 +659,7 @@ class CDeterministicMNManager
     static const int LIST_DIFFS_CACHE_SIZE = DISK_SNAPSHOT_PERIOD * DISK_SNAPSHOTS;
 
 public:
-    CCriticalSection cs;
+    RecursiveMutex cs;
 
 private:
     CEvoDB& evoDb;
@@ -653,13 +671,13 @@ private:
 public:
     explicit CDeterministicMNManager(CEvoDB& _evoDb);
 
-    bool ProcessBlock(const CBlock& block, const CBlockIndex* pindex, CValidationState& state, bool fJustCheck);
+    bool ProcessBlock(const CBlock& block, const CBlockIndex* pindex, TxValidationState& state, bool fJustCheck);
     bool UndoBlock(const CBlock& block, const CBlockIndex* pindex);
 
     void UpdatedBlockTip(const CBlockIndex* pindex);
 
     // the returned list will not contain the correct block hash (we can't know it yet as the coinbase TX is not updated yet)
-    bool BuildNewListFromBlock(const CBlock& block, const CBlockIndex* pindexPrev, CValidationState& state, CDeterministicMNList& mnListRet, bool debugLogs);
+    bool BuildNewListFromBlock(const CBlock& block, const CBlockIndex* pindexPrev, TxValidationState& state, CDeterministicMNList& mnListRet, bool debugLogs);
     void HandleQuorumCommitment(llmq::CFinalCommitment& qc, const CBlockIndex* pindexQuorum, CDeterministicMNList& mnList, bool debugLogs);
     void DecreasePoSePenalties(CDeterministicMNList& mnList);
 
@@ -667,7 +685,7 @@ public:
     CDeterministicMNList GetListAtChainTip();
 
     // Test if given TX is a ProRegTx which also contains the collateral at index n
-    bool IsProTxWithCollateral(const CTransactionRef& tx, uint32_t n);
+    static bool IsProTxWithCollateral(const CTransactionRef& tx, uint32_t n);
 
     bool IsDIP3Enforced(int nHeight = -1);
 

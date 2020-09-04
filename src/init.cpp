@@ -63,17 +63,20 @@
 #include <wallet/wallet.h>
 
 #include <masternode/activemasternode.h>
+#include <masternode/masternode-meta.h>
 #include <masternode/masternode-payments.h>
 #include <masternode/masternode-sync.h>
-#include <masternode/masternode.h>
-#include <masternode/masternodedb.h>
-#include <masternode/masternodeman.h>
-#include <masternode/masternodeconfig.h>
-#include <masternode/masternode-helpers.h>
+#include <masternode/masternode-utils.h>
+#include <masternode/netfulfilledman.h>
 #include <masternode/spork.h>
 
 #include <validationinterface.h>
 #include <walletinitinterface.h>
+
+#include <evo/deterministicmns.h>
+#include <llmq/quorums_init.h>
+
+#include <bls/bls.h>
 
 #include <stdint.h>
 #include <stdio.h>
@@ -179,6 +182,7 @@ void Interrupt(NodeContext& node)
     InterruptREST();
     InterruptTorControl();
     InterruptMapPort();
+    llmq::InterruptLLMQSystem();
     if (node.connman)
         node.connman->Interrupt();
     if (g_txindex) {
@@ -210,6 +214,7 @@ void Shutdown(NodeContext& node)
         client->flush();
     }
     StopMapPort();
+    llmq::StopLLMQSystem();
 
     // Because these depend on each-other, we make sure that neither can be
     // using the other before destroying them.
@@ -243,9 +248,6 @@ void Shutdown(NodeContext& node)
         DumpMempool(::mempool);
     }
 
-    DumpMasternodes();
-    DumpMasternodePayments();
-
     if (fFeeEstimatesInitialized)
     {
         ::feeEstimator.FlushUnconfirmed();
@@ -268,6 +270,15 @@ void Shutdown(NodeContext& node)
             g_chainstate->ForceFlushStateToDisk();
         }
     }
+
+    //! llmq & evodb destroy
+    llmq::DestroyLLMQSystem();
+    deterministicMNManager.reset();
+    evoDb.reset();
+
+    //! call destructors
+    activeMasternodeInfo.blsKeyOperator.reset();
+    activeMasternodeInfo.blsPubKeyOperator.reset();
 
     // After there are no more peers/RPC left to give us new data which may generate
     // CValidationInterface callbacks, flush them...
@@ -590,10 +601,14 @@ void SetupServerArgs()
 #endif
 
     // Add the hidden options
-    gArgs.AddArg("-masternode", "Run as masternode", false, OptionsCategory::MASTERNODE);
-    gArgs.AddArg("-masternodeprivkey", "Masternode private key", ArgsManager::ALLOW_ANY, OptionsCategory::MASTERNODE);
-    gArgs.AddArg("-masternodeaddr", "Masternode address and port", ArgsManager::ALLOW_ANY, OptionsCategory::CONNECTION);
+    gArgs.AddArg("-sporkaddr=<bitgreenaddress>", "Override spork address. Only useful for regtest and devnet. Using this on mainnet or testnet will ban you.", false, OptionsCategory::OPTIONS);
+    gArgs.AddArg("-minsporkkeys=<n>", "Overrides minimum spork signers to change spork value. Only useful for regtest and devnet. Using this on mainnet or testnet will ban you.", false, OptionsCategory::OPTIONS);
+    gArgs.AddArg("-sporkkey", "Private key to send spork messages", false, OptionsCategory::OPTIONS);
+    gArgs.AddArg("-masternode", strprintf("Enable the client to act as a masternode (default: %u)", false), false, OptionsCategory::MASTERNODE);
+    gArgs.AddArg("-masternodeblsprivkey=<hex>", "Set the masternode BLS private key", false, OptionsCategory::MASTERNODE);
+    gArgs.AddArg("-watchquorums=<n>", strprintf("Watch and validate quorum communication (default: %u)", llmq::DEFAULT_WATCH_QUORUMS), false, OptionsCategory::MASTERNODE);
     gArgs.AddArg("-staking", "Enable staking while working with wallet, default is 1", false, OptionsCategory::OPTIONS);
+
     hidden_args.emplace_back("-sporkkey");
     gArgs.AddHiddenArgs(hidden_args);
 }
@@ -757,6 +772,31 @@ static void ThreadImport(std::vector<fs::path> vImportFiles)
         return;
     }
     } // End scope of CImportingNow
+
+    {
+        // Get all UTXOs for each MN collateral in one go so that we can fill coin cache early
+        // and reduce further locking overhead for cs_main in other parts of code inclluding GUI
+        LogPrintf("Filling coin cache with masternode UTXOs...\n");
+        LOCK(cs_main);
+        int64_t nStart = GetTimeMillis();
+        auto mnList = deterministicMNManager->GetListAtChainTip();
+        mnList.ForEachMN(false, [&](const CDeterministicMNCPtr& dmn) {
+            Coin coin;
+            GetUTXOCoin(dmn->collateralOutpoint, coin);
+        });
+        LogPrintf("Filling coin cache with masternode UTXOs: done in %dms\n", GetTimeMillis() - nStart);
+    }
+
+    if (fMasternode) {
+        assert(activeMasternodeManager);
+        const CBlockIndex* pindexTip;
+        {
+            LOCK(cs_main);
+            pindexTip = ::ChainActive().Tip();
+        }
+        activeMasternodeManager->Init(pindexTip);
+    }
+
     if (gArgs.GetArg("-persistmempool", DEFAULT_PERSIST_MEMPOOL)) {
         LoadMempool(::mempool);
     }
@@ -775,6 +815,9 @@ static bool InitSanityCheck()
     }
 
     if (!glibc_sanity_test() || !glibcxx_sanity_test())
+        return false;
+
+    if (!BLSInit())
         return false;
 
     if (!Random_SanityCheck()) {
@@ -1262,9 +1305,29 @@ bool AppInitMain(NodeContext& node)
     InitSignatureCache();
     InitScriptExecutionCache();
 
+    //! handle spork signer
+    std::vector<std::string> vSporkAddresses;
+    if (gArgs.IsArgSet("-sporkaddr")) {
+        vSporkAddresses = gArgs.GetArgs("-sporkaddr");
+    } else {
+        vSporkAddresses = Params().SporkAddresses();
+    }
+
+    for (const auto& address: vSporkAddresses) {
+        if (!sporkManager.SetSporkAddress(address)) {
+            return InitError(_("Invalid spork address specified with -sporkaddr").translated);
+        }
+    }
+
+    int minsporkkeys = gArgs.GetArg("-minsporkkeys", Params().MinSporkKeys());
+    if (!sporkManager.SetMinSporkKeys(minsporkkeys)) {
+        return InitError(_("Invalid minimum number of spork signers specified with -minsporkkeys").translated);
+    }
+
     if (gArgs.IsArgSet("-sporkkey")) {
-        if (!sporkManager.SetPrivKey(gArgs.GetArg("-sporkkey", "")))
-            return InitError("Unable to sign spork message, wrong key?");
+        if (!sporkManager.SetPrivKey(gArgs.GetArg("-sporkkey", ""))) {
+            return InitError(_("Unable to sign spork message, wrong key?").translated);
+        }
     }
 
     int script_threads = gArgs.GetArg("-par", DEFAULT_SCRIPTCHECK_THREADS);
@@ -1507,6 +1570,7 @@ bool AppInitMain(NodeContext& node)
     nTotalCache -= nCoinDBCache;
     nCoinCacheUsage = nTotalCache; // the rest goes to in-memory cache
     int64_t nMempoolSizeMax = gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000;
+    int64_t nEvoDbCache = 1024 * 1024 * 16;
     LogPrintf("Cache configuration:\n");
     LogPrintf("* Using %.1f MiB for block index database\n", nBlockTreeDBCache * (1.0 / 1024 / 1024));
     if (gArgs.GetBoolArg("-txindex", DEFAULT_TXINDEX)) {
@@ -1539,6 +1603,13 @@ bool AppInitMain(NodeContext& node)
                 // fails if it's still open from the previous loop. Close it first:
                 pblocktree.reset();
                 pblocktree.reset(new CBlockTreeDB(nBlockTreeDBCache, false, fReset));
+                llmq::DestroyLLMQSystem();
+                evoDb.reset();
+                evoDb.reset(new CEvoDB(nEvoDbCache, false, fReset || fReindexChainState));
+                deterministicMNManager.reset();
+                deterministicMNManager.reset(new CDeterministicMNManager(*evoDb));
+
+                llmq::InitLLMQSystem(*evoDb, *g_rpc_node->connman, false, fReset || fReindexChainState);
 
                 if (fReset) {
                     pblocktree->WriteReindexing(true);
@@ -1718,6 +1789,85 @@ bool AppInitMain(NodeContext& node)
         nLocalServices = ServiceFlags(nLocalServices | NODE_WITNESS);
     }
 
+    // ********************************************************* Step 10a: Prepare Masternode related stuff
+    fMasternode = false;
+    std::string strMasterNodeBLSPrivKey = gArgs.GetArg("-masternodeblsprivkey", "");
+    if (!strMasterNodeBLSPrivKey.empty()) {
+        auto binKey = ParseHex(strMasterNodeBLSPrivKey);
+        CBLSSecretKey keyOperator;
+        keyOperator.SetBuf(binKey);
+        if (!keyOperator.IsValid()) {
+            return InitError(_("Invalid masternodeblsprivkey. Please see documentation.").translated);
+        }
+        fMasternode = true;
+        activeMasternodeInfo.blsKeyOperator = std::make_unique<CBLSSecretKey>(keyOperator);
+        activeMasternodeInfo.blsPubKeyOperator = std::make_unique<CBLSPublicKey>(activeMasternodeInfo.blsKeyOperator->GetPublicKey());
+        LogPrintf("MASTERNODE:\n");
+        LogPrintf("  blsPubKeyOperator: %s\n", keyOperator.GetPublicKey().ToString());
+    }
+
+    if(fMasternode) {
+        // Create and register activeMasternodeManager, will init later in ThreadImport
+        activeMasternodeManager = new CActiveMasternodeManager(*node.connman);
+        RegisterValidationInterface(activeMasternodeManager);
+    }
+
+    if (activeMasternodeInfo.blsKeyOperator == nullptr) {
+        activeMasternodeInfo.blsKeyOperator = std::make_unique<CBLSSecretKey>();
+    }
+    if (activeMasternodeInfo.blsPubKeyOperator == nullptr) {
+        activeMasternodeInfo.blsPubKeyOperator = std::make_unique<CBLSPublicKey>();
+    }
+
+    // ********************************************************* Step 10b: Load Masternode caches
+
+    bool fLoadCacheFiles = !(fReindex || fReindexChainState);
+    {
+        LOCK(cs_main);
+        // was blocks/chainstate deleted?
+        if (::ChainActive().Tip() == nullptr) {
+            fLoadCacheFiles = false;
+        }
+    }
+    fs::path pathDB = GetDataDir();
+    std::string strDBName;
+
+    strDBName = "mncache.dat";
+    uiInterface.InitMessage(_("Loading masternode cache...").translated);
+    CFlatDB<CMasternodeMetaMan> flatdb1(strDBName, "magicMasternodeCache");
+    if (fLoadCacheFiles) {
+        if(!flatdb1.Load(mmetaman)) {
+            return InitError(_("Failed to load masternode cache from").translated + "\n" + (pathDB / strDBName).string());
+        }
+    } else {
+        CMasternodeMetaMan mmetamanTmp;
+        if(!flatdb1.Dump(mmetamanTmp)) {
+            return InitError(_("Failed to clear masternode cache at").translated + "\n" + (pathDB / strDBName).string());
+        }
+    }
+
+    strDBName = "netfulfilled.dat";
+    uiInterface.InitMessage(_("Loading fulfilled requests cache...").translated);
+    CFlatDB<CNetFulfilledRequestManager> flatdb4(strDBName, "magicFulfilledCache");
+    if (fLoadCacheFiles) {
+        if(!flatdb4.Load(netfulfilledman)) {
+            return InitError(_("Failed to load fulfilled requests cache from").translated + "\n" + (pathDB / strDBName).string());
+        }
+    } else {
+        CNetFulfilledRequestManager netfulfilledmanTmp;
+        if(!flatdb4.Dump(netfulfilledmanTmp)) {
+            return InitError(_("Failed to clear fulfilled requests cache at").translated + "\n" + (pathDB / strDBName).string());
+        }
+    }
+
+    // ********************************************************* Step 10c: schedule Dash-specific tasks
+
+    node.scheduler->scheduleEvery([&] { netfulfilledman.DoMaintenance(); }, std::chrono::seconds{1});
+    node.scheduler->scheduleEvery([&] { masternodeSync.DoMaintenance(*node.connman); }, std::chrono::seconds{MASTERNODE_SYNC_TICK_SECONDS});
+    node.scheduler->scheduleEvery(std::bind(CMasternodeUtils::DoMaintenance, std::ref(*node.connman)), std::chrono::minutes{1});
+
+    llmq::StartLLMQSystem();
+
     // ********************************************************* Step 11: import blocks
 
     if (!CheckDiskSpace(GetDataDir())) {
@@ -1768,95 +1918,6 @@ bool AppInitMain(NodeContext& node)
 
     // ********************************************************* Step 12: start node
 
-    boost::filesystem::path pathDB = GetDataDir();
-    std::string strDBName;
-
-    uiInterface.InitMessage("Loading masternode cache...");
-    CMasternodeDB mndb;
-    CMasternodeDB::ReadResult readResult = mndb.Read(mnodeman);
-    if (readResult == CMasternodeDB::FileError)
-        LogPrintf("Missing masternode cache file - mncache.dat, will try to recreate\n");
-    else if (readResult != CMasternodeDB::Ok) {
-        LogPrintf("Error reading mncache.dat: ");
-        if (readResult == CMasternodeDB::IncorrectFormat)
-            LogPrintf("magic is ok but data has invalid format, will try to recreate\n");
-        else
-            LogPrintf("file format is unknown or invalid, please fix it manually\n");
-    }
-
-    if(mnodeman.size()) {
-        uiInterface.InitMessage("Loading masternode payment cache...");
-        CMasternodePaymentDB mnpayments;
-        CMasternodePaymentDB::ReadResult readResult = mnpayments.Read(masternodePayments);
-        if (readResult == CMasternodePaymentDB::FileError)
-            LogPrintf("Missing masternode payment cache - mnpayments.dat, will try to recreate\n");
-        else if (readResult != CMasternodePaymentDB::Ok) {
-            LogPrintf("Error reading mnpayments.dat: ");
-            if (readResult == CMasternodePaymentDB::IncorrectFormat)
-                LogPrintf("magic is ok but data has invalid format, will try to recreate\n");
-            else
-                LogPrintf("file format is unknown or invalid, please fix it manually\n");
-        }
-    } else {
-        uiInterface.InitMessage("Masternode cache is empty, skipping payments cache...");
-    }
-
-    // ********************************************************* Step 11b: setup Masternode
-
-    fMasternode = gArgs.GetBoolArg("-masternode", false);
-    strMasterNodeAddr = gArgs.GetArg("-masternodeaddr", "");
-
-    if(fMasternode)
-    {
-        LogPrint(BCLog::MASTERNODE, "MASTERNODE:\n");
-
-        if (!strMasterNodeAddr.empty()) {
-            CService addrTest = CService(strMasterNodeAddr);
-            if (!addrTest.IsValid()) {
-                return InitError("Invalid -masternodeaddr address: " + strMasterNodeAddr);
-            }
-        }
-
-        strMasterNodePrivKey = gArgs.GetArg("-masternodeprivkey", "");
-        if(!strMasterNodePrivKey.empty())
-        {
-            CKey key;
-            CPubKey pubkey;
-            if(!masternodeSigner.GetKeysFromSecret(strMasterNodePrivKey, key, pubkey))
-               return InitError("Invalid masternodeprivkey. Please see documentation.");
-            activeMasternode.pubKeyMasternode = pubkey;
-            LogPrint(BCLog::MASTERNODE, "  pubKeyMasternode: %s\n", activeMasternode.pubKeyMasternode.GetID().ToString());
-        } else {
-            return InitError("You must specify a masternodeprivkey in the configuration. Please see documentation for help.\n");
-        }
-
-    }
-
-    auto m_wallet = GetMainWallet();
-    LogPrintf("Using masternode config file %s\n", GetMasternodeConfigFile().string());
-
-    mnConfigTotal = masternodeConfig.getCount();
-    if(mnConfigTotal > -1)
-    {
-        LOCK(m_wallet->cs_wallet);
-        LogPrintf("Locking Masternodes:\n");
-        uint256 mnTxHash;
-        int outputIndex;
-        for (CMasternodeConfig::CMasternodeEntry mne : masternodeConfig.getEntries()) {
-            mnTxHash.SetHex(mne.getTxHash());
-            outputIndex = boost::lexical_cast<unsigned int>(mne.getOutputIndex());
-            COutPoint outpoint = COutPoint(mnTxHash, outputIndex);
-            if(m_wallet->IsMine(CTxIn(outpoint)) != ISMINE_SPENDABLE) {
-                LogPrintf("  %s %s - IS NOT SPENDABLE, was not locked\n", mne.getTxHash(), mne.getOutputIndex());
-                continue;
-            }
-            m_wallet->LockCoin(outpoint);
-            LogPrintf("  %s %s - locked successfully\n", mne.getTxHash(), mne.getOutputIndex());
-        }
-    }
-
-    // ********************************************************* Step 12: start node
-
     int chain_active_height;
 
     //// debug print
@@ -1881,9 +1942,9 @@ bool AppInitMain(NodeContext& node)
     connOptions.nLocalServices = nLocalServices;
     connOptions.nMaxConnections = nMaxConnections;
     connOptions.m_max_outbound_full_relay = std::min(MAX_OUTBOUND_FULL_RELAY_CONNECTIONS, connOptions.nMaxConnections);
-    connOptions.m_max_outbound_block_relay = std::min(MAX_BLOCKS_ONLY_CONNECTIONS, connOptions.nMaxConnections-connOptions.m_max_outbound_full_relay);
+    connOptions.m_max_outbound_block_relay = std::min(MAX_BLOCK_RELAY_ONLY_CONNECTIONS, connOptions.nMaxConnections-connOptions.m_max_outbound_full_relay);
     connOptions.nMaxAddnode = MAX_ADDNODE_CONNECTIONS;
-    connOptions.nMaxFeeler = 1;
+    connOptions.nMaxFeeler = MAX_FEELER_CONNECTIONS;
     connOptions.nBestHeight = chain_active_height;
     connOptions.uiInterface = &uiInterface;
     connOptions.m_banman = node.banman.get();
@@ -1932,8 +1993,6 @@ bool AppInitMain(NodeContext& node)
     }
 
     // ********************************************************* Step 13: finished
-
-    node.scheduler->scheduleEvery(boost::bind(&ThreadMasternodePool), std::chrono::seconds{1});
 
     SetRPCWarmupFinished();
     uiInterface.InitMessage(_("Done loading").translated);

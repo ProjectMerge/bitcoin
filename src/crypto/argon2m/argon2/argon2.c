@@ -36,10 +36,10 @@ const char *argon2_type2string(argon2_type type, int uppercase)
     return NULL;
 }
 
-int argon2_ctx(argon2_context *context, argon2_type type)
+int argon2_ctx_local(argon2_context *context, argon2_type type)
 {
     /* 1. Validate all inputs */
-    int result = validate_inputs(context);
+    int result = validate_inputs_local(context);
     uint32_t memory_blocks, segment_length;
     argon2_instance_t instance;
     if (ARGON2_OK != result) {
@@ -72,17 +72,17 @@ int argon2_ctx(argon2_context *context, argon2_type type)
     /* 3. Initialization: Hashing inputs, allocating memory, filling first
      * blocks
      */
-    result = initialize(&instance, context);
+    result = initialize_local(&instance, context);
     if (ARGON2_OK != result) {
         return result;
     }
     /* 4. Filling memory */
-    result = fill_memory_blocks(&instance);
+    result = fill_memory_blocks_local(&instance);
     if (ARGON2_OK != result) {
         return result;
     }
     /* 5. Finalization */
-    finalize(context, &instance);
+    finalize_local(context, &instance);
     return ARGON2_OK;
 }
 
@@ -130,7 +130,7 @@ int argon2_hash(const uint32_t t_cost, const uint32_t m_cost,
     context.free_cbk = NULL;
     context.flags = ARGON2_DEFAULT_FLAGS;
     context.version = version;
-    result = argon2_ctx(&context, type);
+    result = argon2_ctx_local(&context, type);
     if (result != ARGON2_OK) {
         clear_internal_memory(out, hashlen);
         free(out);
@@ -299,23 +299,23 @@ int argon2id_verify(const char *encoded, const void *pwd, const size_t pwdlen)
 
 int argon2d_ctx(argon2_context *context)
 {
-    return argon2_ctx(context, Argon2_d);
+    return argon2_ctx_local(context, Argon2_d);
 }
 
 int argon2i_ctx(argon2_context *context)
 {
-    return argon2_ctx(context, Argon2_i);
+    return argon2_ctx_local(context, Argon2_i);
 }
 
 int argon2id_ctx(argon2_context *context)
 {
-    return argon2_ctx(context, Argon2_id);
+    return argon2_ctx_local(context, Argon2_id);
 }
 
 int argon2_verify_ctx(argon2_context *context, const char *hash,
                       argon2_type type)
 {
-    int ret = argon2_ctx(context, type);
+    int ret = argon2_ctx_local(context, type);
     if (ret != ARGON2_OK) {
         return ret;
     }

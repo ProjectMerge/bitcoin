@@ -330,9 +330,19 @@ public:
                     GuessVerificationProgress(Params().TxData(), block));
             }));
     }
+    std::unique_ptr<Handler> handleNotifyMasternodeListChanged(NotifyMasternodeListChangedFn fn) override
+    {
+        return MakeHandler(
+            ::uiInterface.NotifyMasternodeListChanged_connect([fn](const CDeterministicMNList& newList) {
+                fn(newList);
+            }));
+    }
     std::unique_ptr<Handler> handleNotifyAdditionalDataSyncProgressChanged(NotifyAdditionalDataSyncProgressChangedFn fn) override
     {
-        return MakeHandler(::uiInterface.NotifyAdditionalDataSyncProgressChanged_connect(fn));
+        return MakeHandler(
+            ::uiInterface.NotifyAdditionalDataSyncProgressChanged_connect([fn](double nSyncProgress) {
+                fn(nSyncProgress);
+            }));
     }
 
     NodeContext* context() override { return &m_context; }
