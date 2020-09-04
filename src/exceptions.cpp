@@ -3,7 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <util/system.h>
-#include <validation.h>
+#include <uint256.h>
 
 std::vector<uint256> exceptionBlocks;
 std::vector<uint256> exceptionTransactions;
