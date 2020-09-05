@@ -1596,61 +1596,59 @@ void static ProcessGetBlockData(CNode* pfrom, const CChainParams& chainparams, c
     }
 }
 
-void static ProcessGetData(CNode* pfrom, const CChainParams& chainparams, CConnman* connman, const std::atomic<bool>& interruptMsgProc) LOCKS_EXCLUDED(cs_main)
+void static ProcessGetData(CNode* pfrom, const CChainParams& chainparams, CConnman* connman, const CTxMemPool& mempool, const std::atomic<bool>& interruptMsgProc) LOCKS_EXCLUDED(cs_main)
 {
     AssertLockNotHeld(cs_main);
 
     std::deque<CInv>::iterator it = pfrom->vRecvGetData.begin();
     std::vector<CInv> vNotFound;
     const CNetMsgMaker msgMaker(pfrom->GetSendVersion());
-    {
-        const std::chrono::seconds longlived_mempool_time = GetTime<std::chrono::seconds>() - RELAY_TX_CACHE_TIME;
-        std::chrono::seconds mempool_req;
-        if(pfrom->m_tx_relay != nullptr)
-            mempool_req = pfrom->m_tx_relay->m_last_mempool_req.load();
 
+    // mempool entries added before this time have likely expired from mapRelay
+    const std::chrono::seconds longlived_mempool_time = GetTime<std::chrono::seconds>() - RELAY_TX_CACHE_TIME;
+    // Get last mempool request time
+    const std::chrono::seconds mempool_req = pfrom->m_tx_relay != nullptr ? pfrom->m_tx_relay->m_last_mempool_req.load()
+                                                                          : std::chrono::seconds::min();
+    {
         LOCK(cs_main);
-        while (it != pfrom->vRecvGetData.end() && (it->type == MSG_TX || it->type == MSG_WITNESS_TX || it->type >= MSG_SPORK)) {
+
+        // Process as many TX items from the front of the getdata queue as
+        // possible, since they're common and it's efficient to batch process
+        // them.
+        while (it != pfrom->vRecvGetData.end() && (it->type == MSG_TX || it->type == MSG_WITNESS_TX)) {
             if (interruptMsgProc)
                 return;
-            // Don't bother if send buffer is too full to respond anyway
+            // The send buffer provides backpressure. If there's no space in
+            // the buffer, pause processing until the next call.
             if (pfrom->fPauseSend)
                 break;
 
-            const CInv &inv = *it;  //! eww.. baz
-            it++;
+            const CInv &inv = *it++;
 
-            LogPrint(BCLog::NET, "ProcessGetData -- inv = %s\n", inv.ToString());
+            if (pfrom->m_tx_relay == nullptr) {
+                // Ignore GETDATA requests for transactions from blocks-only peers.
+                continue;
+            }
 
             // Send stream from relay memory
             bool push = false;
-
-            if(pfrom->m_tx_relay != nullptr && (inv.type == MSG_TX || inv.type == MSG_WITNESS_TX))
-            {
-                auto mi = mapRelay.find(inv.hash);
-                int nSendFlags = (inv.type == MSG_TX ? SERIALIZE_TRANSACTION_NO_WITNESS : 0);
-                if (mi != mapRelay.end()) {
-                    connman->PushMessage(pfrom, msgMaker.Make(nSendFlags, NetMsgType::TX, *mi->second));
-                    push = true;
-                } else {
-                    auto txinfo = mempool.info(inv.hash);
-                    // To protect privacy, do not answer getdata using the mempool when
-                    // that TX couldn't have been INVed in reply to a MEMPOOL request,
-                    // or when it's too recent to have expired from mapRelay.
-                    if (txinfo.tx && (
-                        (mempool_req.count() && txinfo.m_time <= mempool_req)
-                        || (txinfo.m_time <= longlived_mempool_time)))
-                    {
-                        connman->PushMessage(pfrom, msgMaker.Make(nSendFlags, NetMsgType::TX, *txinfo.tx));
-                        push = true;
-                    }
-                }
-
-                if (!push) {
-                    vNotFound.push_back(inv);
-                }
-
+            auto mi = mapRelay.find(inv.hash);
+            int nSendFlags = (inv.type == MSG_TX ? SERIALIZE_TRANSACTION_NO_WITNESS : 0);
+            if (mi != mapRelay.end()) {
+                connman->PushMessage(pfrom, msgMaker.Make(nSendFlags, NetMsgType::TX, *mi->second));
+                push = true;
             } else {
+                auto txinfo = mempool.info(inv.hash);
+                // To protect privacy, do not answer getdata using the mempool when
+                // that TX couldn't have been INVed in reply to a MEMPOOL request,
+                // or when it's too recent to have expired from mapRelay.
+                if (txinfo.tx && (
+                     (mempool_req.count() && txinfo.m_time <= mempool_req)
+                      || (txinfo.m_time <= longlived_mempool_time)))
+                {
+                    connman->PushMessage(pfrom, msgMaker.Make(nSendFlags, NetMsgType::TX, *txinfo.tx));
+                    push = true;
+                }
 
                 if (!push && inv.type == MSG_SPORK) {
                     if(mapSporks.count(inv.hash)) {
@@ -1687,11 +1685,15 @@ void static ProcessGetData(CNode* pfrom, const CChainParams& chainparams, CConnm
         }
     } // release cs_main
 
+    // Only process one BLOCK item per call, since they're uncommon and can be
+    // expensive to process.
     if (it != pfrom->vRecvGetData.end() && !pfrom->fPauseSend) {
         const CInv &inv = *it++;
         if (inv.type == MSG_BLOCK || inv.type == MSG_FILTERED_BLOCK || inv.type == MSG_CMPCT_BLOCK || inv.type == MSG_WITNESS_BLOCK) {
             ProcessGetBlockData(pfrom, chainparams, inv, connman);
         }
+        // else: If the first item on the queue is an unknown type, we erase it
+        // and continue processing the queue on the next call.
     }
 
     pfrom->vRecvGetData.erase(pfrom->vRecvGetData.begin(), it);
@@ -2319,8 +2321,16 @@ bool ProcessMessage(CNode* pfrom, const std::string& msg_type, CDataStream& vRec
             return false;
         }
 
+        // We won't accept tx inv's if we're in blocks-only mode, or this is a
+        // block-relay-only peer
+        bool fBlocksOnly = !g_relay_txes || (pfrom->m_tx_relay == nullptr);
+
+        // Allow whitelisted peers to send data other than blocks in blocks only mode if whitelistrelay is true
+        if (pfrom->HasPermission(PF_RELAY))
+            fBlocksOnly = false;
+
         LOCK(cs_main);
-        std::vector<CInv> vToFetch;
+
         uint32_t nFetchFlags = GetFetchFlags(pfrom);
         const auto current_time = GetTime<std::chrono::microseconds>();
         uint256* best_block{nullptr};
@@ -2340,32 +2350,28 @@ bool ProcessMessage(CNode* pfrom, const std::string& msg_type, CDataStream& vRec
             if (inv.type == MSG_BLOCK) {
                 UpdateBlockAvailability(pfrom->GetId(), inv.hash);
                 if (!fAlreadyHave && !fImporting && !fReindex && !mapBlocksInFlight.count(inv.hash)) {
+                    // Headers-first is the primary method of announcement on
+                    // the network. If a node fell back to sending blocks by inv,
+                    // it's probably for a re-org. The final block hash
+                    // provided should be the highest, so send a getheaders and
+                    // then fetch the blocks we need to catch up.
                     best_block = &inv.hash;
-                    //! getblocks init
-                    if (!pfrom->m_headers_sync) {
-                        vToFetch.push_back(inv);
-                        connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::GETBLOCKS, ::ChainActive().GetLocator(pindexBestHeader), inv.hash));
-                        LogPrint(BCLog::NET, "getblocks (%d) %s to peer=%d\n", pindexBestHeader->nHeight, inv.hash.ToString(), pfrom->GetId());
-                    }
                 }
             } else {
                 pfrom->AddInventoryKnown(inv);
-                if (!fAlreadyHave && !fImporting && !fReindex && !::ChainstateActive().IsInitialBlockDownload()) {
+                if (fBlocksOnly) {
+                    LogPrint(BCLog::NET, "transaction (%s) inv sent in violation of protocol, disconnecting peer=%d\n", inv.hash.ToString(), pfrom->GetId());
+                    pfrom->fDisconnect = true;
+                    return true;
+                } else if (!fAlreadyHave && !fImporting && !fReindex && !::ChainstateActive().IsInitialBlockDownload()) {
                     RequestTx(State(pfrom->GetId()), inv, current_time);
                 }
             }
         }
 
-        if (!pfrom->m_headers_sync) {
-            //! getblocks cont'd
-            if (vToFetch.size() != 1)
-                connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::GETDATA, vToFetch));
-        } else {
-            //! getheaders init
-            if (best_block != nullptr) {
-                connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::GETHEADERS, ::ChainActive().GetLocator(pindexBestHeader), *best_block));
-                LogPrint(BCLog::NET, "getheaders (%d) %s to peer=%d\n", pindexBestHeader->nHeight, best_block->ToString(), pfrom->GetId());
-            }
+        if (best_block != nullptr) {
+            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::GETHEADERS, ::ChainActive().GetLocator(pindexBestHeader), *best_block));
+            LogPrint(BCLog::NET, "getheaders (%d) %s to peer=%d\n", pindexBestHeader->nHeight, best_block->ToString(), pfrom->GetId());
         }
 
         return true;
@@ -2388,7 +2394,7 @@ bool ProcessMessage(CNode* pfrom, const std::string& msg_type, CDataStream& vRec
         }
 
         pfrom->vRecvGetData.insert(pfrom->vRecvGetData.end(), vInv.begin(), vInv.end());
-        ProcessGetData(pfrom, chainparams, connman, interruptMsgProc);
+        ProcessGetData(pfrom, chainparams, connman, mempool, interruptMsgProc);
         return true;
     }
 
@@ -3387,7 +3393,7 @@ bool PeerLogicValidation::ProcessMessages(CNode* pfrom, std::atomic<bool>& inter
     bool fMoreWork = false;
 
     if (!pfrom->vRecvGetData.empty())
-        ProcessGetData(pfrom, chainparams, connman, interruptMsgProc);
+        ProcessGetData(pfrom, chainparams, connman, m_mempool, interruptMsgProc);
 
     if (!pfrom->orphan_work_set.empty()) {
         std::list<CTransactionRef> removed_txn;
@@ -3738,7 +3744,7 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
                 if (pindexStart->pprev)
                     pindexStart = pindexStart->pprev;
                 LogPrint(BCLog::NET, "initial getheaders (%d) to peer=%d (startheight:%d)\n", pindexStart->nHeight, pto->GetId(), pto->nStartingHeight);
-                connman->PushMessage(pto, msgMaker.Make(NetMsgType::GETHEADERS, ::ChainActive().GetLocator(pindexStart), uint256()));
+                connman->PushMessage(pto, msgMaker.Make(NetMsgType::GETDATA, ::ChainActive().GetLocator(pindexStart), uint256()));
             }
         }
 
