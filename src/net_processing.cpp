@@ -1747,10 +1747,6 @@ inline void static SendBlockTransactions(const CBlock& block, const BlockTransac
 
 bool static ProcessHeadersMessage(CNode* pfrom, CConnman* connman, CTxMemPool& mempool, const std::vector<CBlockHeader>& headers, const CChainParams& chainparams, bool via_compact_block)
 {
-    //! cant do anything with a legacy peer
-    if (!IsHeadersNode(pfrom))
-        return true;
-
     const CNetMsgMaker msgMaker(pfrom->GetSendVersion());
     size_t nCount = headers.size();
 
@@ -2322,7 +2318,8 @@ bool ProcessMessage(CNode* pfrom, const std::string& msg_type, CDataStream& vRec
         return true;
     }
 
-    if (msg_type == NetMsgType::INV) {
+    if (msg_type == NetMsgType::INV)
+    {
         std::vector<CInv> vInv;
         vRecv >> vInv;
         if (vInv.size() > MAX_INV_SZ)
@@ -2332,17 +2329,7 @@ bool ProcessMessage(CNode* pfrom, const std::string& msg_type, CDataStream& vRec
             return false;
         }
 
-        // We won't accept tx inv's if we're in blocks-only mode, or this is a
-        // block-relay-only peer
-        bool fBlocksOnly = false;
-
-        // Allow whitelisted peers to send data other than blocks in blocks only mode if whitelistrelay is true
-        if (pfrom->HasPermission(PF_RELAY))
-            fBlocksOnly = false;
-
         LOCK(cs_main);
-
-        std::vector<CInv> vToFetch;
 
         uint32_t nFetchFlags = GetFetchFlags(pfrom);
         const auto current_time = GetTime<std::chrono::microseconds>();
@@ -2369,23 +2356,14 @@ bool ProcessMessage(CNode* pfrom, const std::string& msg_type, CDataStream& vRec
                     // provided should be the highest, so send a getheaders and
                     // then fetch the blocks we need to catch up.
                     best_block = &inv.hash;
-                    vToFetch.push_back(inv);
-                    LogPrintf("getblocks (%d) %s to peer=%d\n", pindexBestHeader->nHeight, inv.hash.ToString(), pfrom->GetId());
                 }
             } else {
                 pfrom->AddInventoryKnown(inv);
-                if (fBlocksOnly) {
-                    LogPrint(BCLog::NET, "transaction (%s) inv sent in violation of protocol, disconnecting peer=%d\n", inv.hash.ToString(), pfrom->GetId());
-                    pfrom->fDisconnect = true;
-                    return true;
-                } else if (!fAlreadyHave && !fImporting && !fReindex && !::ChainstateActive().IsInitialBlockDownload()) {
+                if (!fAlreadyHave && !fImporting && !fReindex && !::ChainstateActive().IsInitialBlockDownload()) {
                     RequestTx(State(pfrom->GetId()), inv, current_time);
                 }
             }
         }
-
-        if (!vToFetch.empty())
-            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::GETDATA, vToFetch));
 
         if (best_block != nullptr) {
             connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::GETHEADERS, ::ChainActive().GetLocator(pindexBestHeader), *best_block));
@@ -3761,8 +3739,13 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
                    got back an empty response.  */
                 if (pindexStart->pprev)
                     pindexStart = pindexStart->pprev;
-                LogPrint(BCLog::NET, "initial getheaders (%d) to peer=%d (startheight:%d)\n", pindexStart->nHeight, pto->GetId(), pto->nStartingHeight);
-                connman->PushMessage(pto, msgMaker.Make(NetMsgType::GETBLOCKS, ::ChainActive().GetLocator(pindexStart), uint256()));
+                if (pto->m_headers_sync) {
+                    LogPrint(BCLog::NET, "initial getheaders (%d) to peer=%d (startheight:%d)\n", pindexStart->nHeight, pto->GetId(), pto->nStartingHeight);
+                    connman->PushMessage(pto, msgMaker.Make(NetMsgType::GETHEADERS, ::ChainActive().GetLocator(pindexStart), uint256()));
+                } else {
+                    LogPrint(BCLog::NET, "initial getblocks (%d) to legacy peer=%d (startheight:%d)\n", pindexStart->nHeight, pto->GetId(), pto->nStartingHeight);
+                    connman->PushMessage(pto, msgMaker.Make(NetMsgType::GETBLOCKS, ::ChainActive().GetLocator(::ChainActive().Tip()), uint256()));
+                }
             }
         }
 
