@@ -21,6 +21,8 @@ CSporkManager sporkManager;
 
 std::map<uint256, CSporkMessage> mapSporks;
 
+extern void EraseInvRequest(const CNode* pfrom, const uint256& hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
+
 namespace Spork {
 static const int64_t SPORK_5_MAX_VALUE_DEFAULT = 1000;
 static const int64_t SPORK_7_MASTERNODE_SCANNING_DEFAULT = 978307200;

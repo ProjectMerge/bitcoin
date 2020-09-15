@@ -165,6 +165,7 @@ BITCOIN_CORE_H = \
   memusage.h \
   merkleblock.h \
   miner.h \
+  mn_processing.h \
   net.h \
   net_permissions.h \
   net_processing.h \
@@ -319,6 +320,7 @@ libmerge_server_a_SOURCES = \
   miner.cpp \
   net.cpp \
   net_processing.cpp \
+  mn_processing.cpp \
   node/coin.cpp \
   node/coinstats.cpp \
   node/context.cpp \
