@@ -18,6 +18,8 @@
 class CMasternodeSync;
 CMasternodeSync masternodeSync;
 
+extern int ActiveProtocol();
+
 CMasternodeSync::CMasternodeSync()
 {
     Reset();

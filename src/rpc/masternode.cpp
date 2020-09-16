@@ -23,6 +23,8 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/tokenizer.hpp>
 
+extern int ActiveProtocol();
+
 UniValue listmasternodes(const JSONRPCRequest& request)
 {
     std::string strFilter = "";

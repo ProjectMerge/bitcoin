@@ -21,7 +21,6 @@
 #include <flatfile.h>
 #include <hash.h>
 #include <index/txindex.h>
-#include <legacyclients.h>
 #include <logging.h>
 #include <logging/timer.h>
 #include <policy/fees.h>
@@ -52,6 +51,7 @@
 
 #include <masternode/masternodeman.h>
 #include <masternode/masternode-payments.h>
+#include <masternode/spork.h>
 #include <pos/kernel.h>
 
 #include <string>
@@ -218,6 +218,13 @@ int GetUTXOConfirmations(const COutPoint& outpoint)
     LOCK(cs_main);
     int nPrevoutHeight = GetUTXOHeight(outpoint);
     return (nPrevoutHeight > -1 && ::ChainActive().Tip()) ? ::ChainActive().Height() - nPrevoutHeight + 1 : -1;
+}
+
+bool IsLegacyMode()
+{
+    if (sporkManager.IsSporkActive(Spork::SPORK_16_CLIENT_COMPAT_MODE))
+        return false;
+    return true;
 }
 
 bool CheckFinalTx(const CTransaction &tx, int flags)

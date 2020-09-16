@@ -159,12 +159,12 @@ BITCOIN_CORE_H = \
   masternode/masternode-helpers.h \
   masternode/netfulfilledman.h \
   masternode/spork.h \
-  legacyclients.h \
   logging.h \
   logging/timer.h \
   memusage.h \
   merkleblock.h \
   miner.h \
+  mn_processing.h \
   net.h \
   net_permissions.h \
   net_processing.h \
@@ -305,7 +305,6 @@ libmerge_server_a_SOURCES = \
   interfaces/node.cpp \
   init.cpp \
   dbwrapper.cpp \
-  legacyclients.cpp \
   masternode/activemasternode.cpp \
   masternode/masternode.cpp \
   masternode/masternode-payments.cpp \
@@ -319,6 +318,7 @@ libmerge_server_a_SOURCES = \
   miner.cpp \
   net.cpp \
   net_processing.cpp \
+  mn_processing.cpp \
   node/coin.cpp \
   node/coinstats.cpp \
   node/context.cpp \
