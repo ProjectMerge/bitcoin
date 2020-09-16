@@ -2265,6 +2265,8 @@ bool ProcessMessage(CNode* pfrom, const std::string& msg_type, CDataStream& vRec
         const auto current_time = GetTime<std::chrono::microseconds>();
         uint256* best_block{nullptr};
 
+        bool willStillBeIBD = ::ChainstateActive().IsInitialBlockDownload();
+
         for (CInv &inv : vInv)
         {
             if (interruptMsgProc)
@@ -2290,13 +2292,13 @@ bool ProcessMessage(CNode* pfrom, const std::string& msg_type, CDataStream& vRec
                 }
             } else {
                 pfrom->AddInventoryKnown(inv);
-                if (!fAlreadyHave && !fImporting && !fReindex && !::ChainstateActive().IsInitialBlockDownload()) {
+                if (!fAlreadyHave && !fImporting && !fReindex && !willStillBeIBD) {
                     RequestTx(State(pfrom->GetId()), inv, current_time);
                 }
             }
         }
 
-        if (vInv.size() != 1 || !::ChainstateActive().IsInitialBlockDownload())
+        if (vInv.size() != 1 || !willStillBeIBD)
             connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::GETDATA, vToFetch));
 
         if (best_block != nullptr) {
