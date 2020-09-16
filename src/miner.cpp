@@ -15,7 +15,6 @@
 #include <consensus/merkle.h>
 #include <consensus/tx_verify.h>
 #include <consensus/validation.h>
-#include <legacyclients.h>
 #include <masternode/masternodeman.h>
 #include <masternode/masternode-sync.h>
 #include <policy/feerate.h>

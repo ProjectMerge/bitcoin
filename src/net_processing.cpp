@@ -13,7 +13,6 @@
 #include <consensus/validation.h>
 #include <hash.h>
 #include <validation.h>
-#include <legacyclients.h>
 #include <merkleblock.h>
 #include <mn_processing.h>
 #include <netmessagemaker.h>
@@ -1926,6 +1925,10 @@ void static ProcessOrphanTx(CConnman* connman, CTxMemPool& mempool, std::set<uin
 
 bool ProcessMessage(CNode* pfrom, const std::string& msg_type, CDataStream& vRecv, int64_t nTimeReceived, const CChainParams& chainparams, CTxMemPool& mempool, CConnman* connman, BanMan* banman, const std::atomic<bool>& interruptMsgProc)
 {
+    //! just snarf these as they are spam
+    if (msg_type == NetMsgType::DSEEP)
+        return true;
+
     LogPrint(BCLog::NET, "received: %s (%u bytes) peer=%d\n", SanitizeString(msg_type), vRecv.size(), pfrom->GetId());
     if (gArgs.IsArgSet("-dropmessagestest") && GetRand(gArgs.GetArg("-dropmessagestest", 0)) == 0)
     {
