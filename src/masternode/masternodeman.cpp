@@ -21,7 +21,6 @@
 CMasternodeMan mnodeman;
 
 extern int ActiveProtocol();
-extern void Misbehaving(NodeId nodeid, int howmuch, const std::string& message="") EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
 struct CompareLastPaid {
     bool operator()(const std::pair<int64_t, CTxIn>& t1,
