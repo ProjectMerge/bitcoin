@@ -84,6 +84,11 @@ void CStake::BestStakeSeen(uint256& hash)
     }
 }
 
+uint256 CStake::ReturnBestStakeSeen()
+{
+    return bestHash;
+}
+
 typedef std::vector<unsigned char> valtype;
 bool CStake::CreateCoinStake(unsigned int nBits, CMutableTransaction& txNew, unsigned int& nTxNewTime)
 {

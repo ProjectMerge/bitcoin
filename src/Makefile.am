@@ -338,6 +338,7 @@ libmerge_server_a_SOURCES = \
   rpc/net.cpp \
   rpc/rawtransaction.cpp \
   rpc/server.cpp \
+  rpc/staking.cpp \
   script/sigcache.cpp \
   shutdown.cpp \
   timedata.cpp \
