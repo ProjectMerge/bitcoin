@@ -33,6 +33,7 @@ public:
     bool SelectStakeCoins(std::set<std::pair<const CWalletTx*, unsigned int> >& setCoins, CAmount nTargetAmount) const;
     bool CreateCoinStake(unsigned int nBits, CMutableTransaction& txNew, unsigned int& nTxNewTime);
     void BestStakeSeen(uint256& hash);
+    uint256 ReturnBestStakeSeen();
 };
 
 #endif // BITCOIN_WALLET_STAKE_H

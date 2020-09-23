@@ -28,12 +28,6 @@ bool CStake::SelectStakeCoins(std::set<std::pair<const CWalletTx*, unsigned int>
 
     for (const COutput& out : vCoins)
     {
-        //until we get more confident with our key handling, only choose TX_PUBKEY
-        std::vector<valtype> vSolutions;
-        CScript scriptPubKeyKernel = out.tx->tx->vout[out.i].scriptPubKey;
-        if (Solver(scriptPubKeyKernel, vSolutions) != txnouttype::TX_PUBKEY)
-            continue;
-
         //make sure not to outrun target amount
         if (nAmountSelected + out.tx->tx->vout[out.i].nValue > nTargetAmount)
             continue;
@@ -88,6 +82,11 @@ void CStake::BestStakeSeen(uint256& hash)
             LogPrintf("best proofHash seen: %s\n", bestHash.ToString().c_str());
         }
     }
+}
+
+uint256 CStake::ReturnBestStakeSeen()
+{
+    return bestHash;
 }
 
 typedef std::vector<unsigned char> valtype;
