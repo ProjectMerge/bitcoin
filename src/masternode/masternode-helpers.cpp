@@ -111,7 +111,7 @@ void ThreadMasternodePool()
 
         // check if we should activate or ping every few minutes,
         // start right after sync is considered to be done
-        if (c % MASTERNODE_PING_SECONDS == 1)
+        if (c % MASTERNODE_PING_SECONDS == 0)
             activeMasternode.ManageStatus(*g_rpc_node->connman);
 
         if (c % 60 == 0) {
