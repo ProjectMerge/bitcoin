@@ -24,6 +24,9 @@ extern CStake stake;
  */
 class CStake
 {
+private:
+    uint256 bestHash{};
+
 public:
     unsigned int nStakeSplitThreshold = 2000;
     unsigned int nHashInterval = 22;
@@ -33,6 +36,7 @@ public:
     bool SelectStakeCoins(std::set<std::pair<const CWalletTx*, unsigned int> >& setCoins, CAmount nTargetAmount) const;
     bool CreateCoinStake(unsigned int nBits, CMutableTransaction& txNew, unsigned int& nTxNewTime);
     void BestStakeSeen(uint256& hash);
+    void ResetBestStakeSeen();
     uint256 ReturnBestStakeSeen();
 };
 

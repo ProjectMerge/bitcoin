@@ -47,6 +47,7 @@
 #include <util/system.h>
 #include <util/translation.h>
 #include <validationinterface.h>
+#include <wallet/stake.h>
 #include <warnings.h>
 
 #include <masternode/masternodeman.h>
@@ -2679,6 +2680,9 @@ void static UpdateTip(const CBlockIndex* pindexNew, const CChainParams& chainPar
         }
         if (nUpgraded > 0)
             AppendWarning(warningMessages, strprintf(_("%d of last 100 blocks have unexpected version").translated, nUpgraded));
+
+        //! reset the 'bestproofhash' recorder
+        stake.ResetBestStakeSeen();
     }
     LogPrintf("%s: new best=%s height=%d version=0x%08x log2_work=%.8g tx=%lu date='%s' progress=%f cache=%.1fMiB(%utxo)%s\n", __func__,
       pindexNew->GetBlockHash().ToString(), pindexNew->nHeight, pindexNew->nVersion,
