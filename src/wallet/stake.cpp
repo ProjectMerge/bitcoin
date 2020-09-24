@@ -164,22 +164,16 @@ bool CStake::CreateCoinStake(unsigned int nBits, CMutableTransaction& txNew, uns
                 CScript scriptPubKeyOut;
                 scriptPubKeyKernel = pcoin.first->tx->vout[pcoin.second].scriptPubKey;
                 txnouttype whichType = Solver(scriptPubKeyKernel, vSolutions);
-                if (whichType != TX_PUBKEY && whichType != TX_PUBKEYHASH) {
+                if (whichType != TX_PUBKEY && whichType != TX_PUBKEYHASH && whichType != TX_WITNESS_V0_KEYHASH) {
                     LogPrint(BCLog::POS, "%s: no support for kernel type=%d\n", __func__, whichType);
                     break;
                 }
 
                 LogPrintf("CStake::CreateCoinStake(): parsed kernel type=%d\n", whichType);
 
-                if (whichType == TX_PUBKEYHASH) {
-                    provider = m_wallet->GetSolvingProvider(scriptPubKeyKernel);
-                    if (!provider) {
-                        LogPrint(BCLog::POS, "%s: failed to obtain a signing/solving provider\n", __func__);
-                        break;
-                    }
-
+                if (whichType == TX_PUBKEYHASH || whichType == TX_WITNESS_V0_KEYHASH) {
                     CKey key;
-                    if (provider->GetKey(CKeyID(uint160(vSolutions[0])), key)) {
+                    if (!m_wallet->GetLegacyScriptPubKeyMan()->GetKey(CKeyID(uint160(vSolutions[0])), key)) {
                         LogPrint(BCLog::POS, "%s: failed to get key for kernel type=%d\n", __func__, whichType);
                         break;
                     }
