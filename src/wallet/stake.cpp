@@ -73,15 +73,19 @@ bool CStake::MintableCoins()
     return false;
 }
 
-uint256 bestHash = uint256S("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 void CStake::BestStakeSeen(uint256& hash)
 {
     if (UintToArith256(hash) < UintToArith256(bestHash)) {
         if (hash != uint256()) {
             bestHash = hash;
-            LogPrintf("best proofHash seen: %s\n", bestHash.ToString().c_str());
+            LogPrint(BCLog::POS, "best proofHash seen: %s\n", bestHash.ToString());
         }
     }
+}
+
+void CStake::ResetBestStakeSeen()
+{
+    bestHash = uint256S("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 }
 
 uint256 CStake::ReturnBestStakeSeen()
