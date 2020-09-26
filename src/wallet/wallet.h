@@ -790,6 +790,9 @@ public:
     }
     WalletDatabase& GetDatabase() override { return *database; }
 
+    /** If wallet has opted to only be unlocked for staking */
+    bool fWalletUnlockStakingOnly = false;
+
     /**
      * Select a set of coins such that nValueRet >= nTargetValue and at least
      * all coins from coinControl are selected; Never select unconfirmed coins
