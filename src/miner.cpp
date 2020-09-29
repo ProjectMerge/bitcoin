@@ -503,7 +503,7 @@ static bool ProcessBlockFound(const std::shared_ptr<const CBlock> &pblock, const
 
 void static BitcoinMiner(const CChainParams& chainparams, CConnman& connman, CWallet* pwallet, bool fProofOfStake)
 {
-    SetThreadPriority(THREAD_PRIORITY_LOWEST);
+    LogPrintf("CPUMiner started for proof-of-stake\n");
     util::ThreadRename("bitcoin-miner");
 
     unsigned int nExtraNonce = 0;
@@ -513,14 +513,6 @@ void static BitcoinMiner(const CChainParams& chainparams, CConnman& connman, CWa
 
     while (true)
     {
-        //! spin until chain/mndata synced
-        while (!masternodeSync.IsBlockchainSynced() &&
-               !masternodeSync.IsSynced())
-        {
-               boost::this_thread::interruption_point();
-               MilliSleep(1000);
-        }
-
         if (ShutdownRequested())
             return;
 
@@ -559,7 +551,7 @@ void static BitcoinMiner(const CChainParams& chainparams, CConnman& connman, CWa
             BlockAssembler assembler(mempool, chainparams);
             auto pblocktemplate = assembler.CreateNewBlock(coinbaseScript, fProofOfStake);
             if (!pblocktemplate.get()) {
-                MilliSleep(5000);
+                MilliSleep(500);
                 continue;
             }
 
@@ -591,7 +583,6 @@ void static BitcoinMiner(const CChainParams& chainparams, CConnman& connman, CWa
                 SetThreadPriority(THREAD_PRIORITY_NORMAL);
                 ProcessBlockFound(pblock, chainparams);
                 SetThreadPriority(THREAD_PRIORITY_LOWEST);
-                MilliSleep(10000);
                 continue;
             }
 
