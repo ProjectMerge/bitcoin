@@ -1008,6 +1008,13 @@
           </property>
          </spacer>
         </item>
+        <item>
+         <widget class="QPushButton" name="showMoreButton">
+          <property name="text">
+           <string>More</string>
+          </property>
+         </widget>
+        </item>
        </layout>
       </item>
       <item>

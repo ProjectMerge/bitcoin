@@ -13,7 +13,6 @@
 class ClientModel;
 class TransactionFilterProxy;
 class TxViewDelegate;
-class TknViewDelegate;
 class PlatformStyle;
 class WalletModel;
 

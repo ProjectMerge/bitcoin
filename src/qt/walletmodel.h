@@ -68,13 +68,15 @@ public:
         DuplicateAddress,
         TransactionCreationFailed, // Error returned when wallet is still locked
         AbsurdFee,
-        PaymentRequestExpired
+        PaymentRequestExpired,
+        StakingOnlyUnlocked
     };
 
     enum EncryptionStatus
     {
         Unencrypted,  // !wallet->IsCrypted()
         Locked,       // wallet->IsCrypted() && wallet->IsLocked()
+        UnlockedForStakingOnly, // wallet->IsCrypted() && !wallet->IsLocked() && wallet->fWalletUnlockStakingOnly
         Unlocked      // wallet->IsCrypted() && !wallet->IsLocked()
     };
 
@@ -109,11 +111,14 @@ public:
     // Wallet encryption
     bool setWalletEncrypted(bool encrypted, const SecureString &passphrase);
     // Passphrase only needed when unlocking
-    bool setWalletLocked(bool locked, const SecureString &passPhrase=SecureString());
+    bool setWalletLocked(bool locked, const SecureString &passPhrase=SecureString(), bool stakingOnly=false);
     bool changePassphrase(const SecureString &oldPass, const SecureString &newPass);
     bool restoreWallet(const QString &filename, const QString &param);
     bool getWalletUnlockStakingOnly();
     void setWalletUnlockStakingOnly(bool unlock);
+
+    // Is wallet unlocked for staking only?
+    bool isStakingOnlyUnlocked();
 
     // RAI object for unlocking wallet, returned by requestUnlock()
     class UnlockContext
