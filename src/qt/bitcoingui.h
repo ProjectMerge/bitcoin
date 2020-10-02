@@ -253,14 +253,13 @@ public Q_SLOTS:
     /** Set the UI status indicators based on the currently selected wallet.
     */
     void updateWalletStatus();
-    void setStakingStatus();
 
 private:
     /** Set the encryption status as shown in the UI.
        @param[in] status            current encryption status
        @see WalletModel::EncryptionStatus
     */
-    void setEncryptionStatus(int status);
+    void setEncryptionStatus(WalletModel *walletModel);
 
     /** Set the hd-enabled status as shown in the UI.
      @param[in] hdEnabled         current hd enabled status
@@ -327,6 +326,10 @@ public Q_SLOTS:
     void showNormalIfMinimized(bool fToggleHidden);
     /** Simply calls showNormalIfMinimized(true) for use in SLOT() macro */
     void toggleHidden();
+#ifdef ENABLE_WALLET
+    /** Update staking icon **/
+    void updateStakingIcon();
+#endif // ENABLE_WALLET
 
     /** called by a timer to check if ShutdownRequested() has been set **/
     void detectShutdown();

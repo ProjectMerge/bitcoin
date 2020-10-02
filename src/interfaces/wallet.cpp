@@ -541,6 +541,10 @@ public:
     {
         RemoveWallet(m_wallet);
     }
+    int64_t getLastCoinStakeSearchInterval() override
+    {
+        return m_wallet->m_last_coin_stake_search_interval;
+    }
     bool getWalletUnlockStakingOnly() override
     {
         return m_wallet->m_wallet_unlock_staking_only;

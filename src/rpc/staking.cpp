@@ -113,7 +113,7 @@ UniValue getstakingstatus(const JSONRPCRequest& request)
 
     bool nStaking = false;
 
-    if (nLastCoinStakeSearchInterval > 0)
+    if (m_wallet->m_last_coin_stake_search_interval > 0)
         nStaking = true;
 
     obj.pushKV("staking status", nStaking);

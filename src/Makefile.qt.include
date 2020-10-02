@@ -228,8 +228,6 @@ RES_ICONS = \
   qt/res/icons/tx_mined.png \
   qt/res/icons/warning.png \
   qt/res/icons/masternodes.png \
-  qt/res/icons/staking_active.png \
-  qt/res/icons/staking_inactive.png \
   qt/res/icons/verify.png \
   qt/res/icons/staking_on.png \
   qt/res/icons/staking_off.png \

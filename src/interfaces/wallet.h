@@ -273,6 +273,9 @@ public:
     // Remove wallet.
     virtual void remove() = 0;
 
+    //! Get last coin stake search interval
+    virtual int64_t getLastCoinStakeSearchInterval() = 0;
+
     //! Get wallet unlock for staking only
     virtual bool getWalletUnlockStakingOnly() = 0;
 
