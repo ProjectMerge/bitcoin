@@ -72,12 +72,11 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const interface
         }
         else
         {
-
             //stake reward
             isminetype mine = wtx.txout_is_mine[1];
             sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
             sub.address = EncodeDestination(address);
-            sub.credit = wtx.tx->GetValueOut() - nDebit;
+            sub.credit = nCredit - nDebit;
             sub.type = TransactionRecord::StakeMint;
 
         }
