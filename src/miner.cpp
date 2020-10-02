@@ -35,7 +35,6 @@
 
 #include <boost/thread.hpp>
 
-int64_t nLastCoinStakeSearchInterval = 0;
 int64_t UpdateTime(CBlockHeader* pblock, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev)
 {
     int64_t nOldTime = pblock->nTime;
@@ -168,7 +167,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     coinbaseTx.vout[0].scriptPubKey = scriptPubKeyIn;
 
     // ppcoin: if coinstake available add coinstake tx
-    static int64_t nLastCoinStakeSearchTime = GetAdjustedTime();
+    static int64_t m_last_coin_stake_search_time = GetAdjustedTime();
 
     if(fProofOfStake)
     {
@@ -177,7 +176,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
         CMutableTransaction coinstakeTx;
         int64_t nSearchTime = pblock->nTime;
         bool fStakeFound = false;
-        if (nSearchTime >= nLastCoinStakeSearchTime) {
+        if (nSearchTime >= m_last_coin_stake_search_time) {
             unsigned int nTxNewTime = 0;
             if (stake.CreateCoinStake(pblock->nBits, coinstakeTx, nTxNewTime)) {
                 pblock->nTime = nTxNewTime;
@@ -185,8 +184,8 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
                 pblock->vtx[1] = MakeTransactionRef(std::move(coinstakeTx));
                 fStakeFound = true;
             }
-            nLastCoinStakeSearchInterval = nSearchTime - nLastCoinStakeSearchTime;
-            nLastCoinStakeSearchTime = nSearchTime;
+            m_wallet->m_last_coin_stake_search_interval = nSearchTime - m_last_coin_stake_search_time;
+            m_last_coin_stake_search_time = nSearchTime;
         }
         if (!fStakeFound)
             return nullptr;
@@ -518,7 +517,7 @@ void static BitcoinMiner(const CChainParams& chainparams, CConnman& connman, CWa
 
         try {
 
-            MilliSleep(1000);
+            MilliSleep(100);
 
             // Throw an error if no script was provided.  This can happen
             // due to some internal error but also if the keypool is empty.
@@ -530,13 +529,16 @@ void static BitcoinMiner(const CChainParams& chainparams, CConnman& connman, CWa
                 bool fvNodesEmpty = connman.GetNodeCount(CConnman::CONNECTIONS_ALL) == 0;
                 if (!fvNodesEmpty && !::ChainstateActive().IsInitialBlockDownload() && masternodeSync.IsSynced())
                     break;
-                MilliSleep(5000);
+                MilliSleep(1000);
             } while (true);
 
-            if(fProofOfStake) {
-                if (::ChainActive().Tip()->nHeight < chainparams.GetConsensus().LastPoWBlock() || pwallet->IsLocked() || !masternodeSync.IsSynced()) {
-                    nLastCoinStakeSearchInterval = 0;
-                    MilliSleep(5000);
+            if(fProofOfStake)
+            {
+                if (::ChainActive().Tip()->nHeight+1 < chainparams.GetConsensus().nLastPoWBlock ||
+                    pwallet->IsLocked() || !masternodeSync.IsSynced())
+                {
+                    pwallet->m_last_coin_stake_search_interval = 0;
+                    MilliSleep(1000);
                     continue;
                 }
             }
