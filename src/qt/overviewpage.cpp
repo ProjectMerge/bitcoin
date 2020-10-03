@@ -134,23 +134,13 @@ public:
         QFont amountFont = option.font;
         painter->setFont(amountFont);
 
-        if(amount < 0)
-        {
-            foreground = COLOR_NEGATIVE;
-        }
-        else if(!confirmed)
-        {
-            foreground = COLOR_UNCONFIRMED;
-        }
-        else
-        {
+        //! set amount color consistently
+        if(selected) {
+            foreground = foreground_color_selected;
+        } else {
             foreground = amount_color;
         }
 
-        if(selected)
-        {
-            foreground = foreground_color_selected;
-        }
         painter->setPen(foreground);
 
         QString amountText = BitcoinUnits::formatWithUnit(unit, amount, true, BitcoinUnits::separatorAlways);
