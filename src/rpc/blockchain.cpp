@@ -1286,7 +1286,31 @@ static UniValue getchaintips(const JSONRPCRequest& request)
 {
             RPCHelpMan{"getchaintips",
                 "Return information about all known tips in the block tree,"
-                " including the main chain as well as orphaned branches.\n",
+                " including the main chain as well as orphaned branches.\n"
+                "\nArguments:\n"
+                "1. count       (numeric, optional) only show this much of latest tips\n"
+                "2. branchlen   (numeric, optional) only show tips that have equal or greater length of branch\n"
+                "\nResult:\n"
+                "[\n"
+                "  {\n"
+                "    \"height\": xxxx,             (numeric) height of the chain tip\n"
+                "    \"hash\": \"xxxx\",             (string) block hash of the tip\n"
+                "    \"difficulty\" : x.xxx,       (numeric) The difficulty\n"
+                "    \"chainwork\" : \"0000...1f3\"  (string) Expected number of hashes required to produce the current chain (in hex)\n"
+                "    \"branchlen\": 0              (numeric) zero for main chain\n"
+                "    \"forkpoint\": \"xxxx\",        (string) same as \"hash\" for the main chain\n"
+                "    \"status\": \"active\"          (string) \"active\" for the main chain\n"
+                "  },\n"
+                "  {\n"
+                "    \"height\": xxxx,\n"
+                "    \"hash\": \"xxxx\",\n"
+                "    \"difficulty\" : x.xxx,\n"
+                "    \"chainwork\" : \"0000...1f3\"\n"
+                "    \"branchlen\": 1              (numeric) length of branch connecting the tip to the main chain\n"
+                "    \"forkpoint\": \"xxxx\",        (string) block hash of the last common block between this tip and the main chain\n"
+                "    \"status\": \"xxxx\"            (string) status of the chain (active, valid-fork, valid-headers, headers-only, invalid)\n"
+                "  }\n"
+                "]\n",
                 {},
                 RPCResult{
                     RPCResult::Type::ARR, "", "",
@@ -1340,16 +1364,32 @@ static UniValue getchaintips(const JSONRPCRequest& request)
     // Always report the currently active tip.
     setTips.insert(::ChainActive().Tip());
 
+    int nBranchMin = -1;
+    int nCountMax = INT_MAX;
+
+    if(!request.params[0].isNull())
+        nCountMax = request.params[0].get_int();
+
+    if(!request.params[1].isNull())
+        nBranchMin = request.params[1].get_int();
+
     /* Construct the output array.  */
     UniValue res(UniValue::VARR);
     for (const CBlockIndex* block : setTips)
     {
+        const CBlockIndex* pindexFork = ::ChainActive().FindFork(block);
+        const int branchLen = block->nHeight - pindexFork->nHeight;
+        if(branchLen < nBranchMin) continue;
+
+        if(nCountMax-- < 1) break;
         UniValue obj(UniValue::VOBJ);
+
         obj.pushKV("height", block->nHeight);
         obj.pushKV("hash", block->phashBlock->GetHex());
-
-        const int branchLen = block->nHeight - ::ChainActive().FindFork(block)->nHeight;
+        obj.pushKV("difficulty", GetDifficulty(block));
+        obj.pushKV("chainwork", block->nChainWork.GetHex());
         obj.pushKV("branchlen", branchLen);
+        obj.pushKV("forkpoint", pindexFork->phashBlock->GetHex());
 
         std::string status;
         if (::ChainActive().Contains(block)) {
