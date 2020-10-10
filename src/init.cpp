@@ -590,7 +590,8 @@ void SetupServerArgs()
 
     // Add the hidden options
     gArgs.AddArg("-masternode", "Run as masternode", false, OptionsCategory::MASTERNODE);
-    gArgs.AddArg("-masternodeprivkey", "Masternode private key", false, OptionsCategory::MASTERNODE);
+    gArgs.AddArg("-masternodeprivkey", "Masternode private key", ArgsManager::ALLOW_ANY, OptionsCategory::MASTERNODE);
+    gArgs.AddArg("-masternodeaddr", "Masternode address and port", ArgsManager::ALLOW_ANY, OptionsCategory::CONNECTION);
     hidden_args.emplace_back("-sporkkey");
     gArgs.AddHiddenArgs(hidden_args);
 }
