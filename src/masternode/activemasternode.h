@@ -23,6 +23,7 @@
 // Responsible for activating the Masternode and pinging the network
 class CActiveMasternode {
 private:
+
     // critical section to protect the inner data structures
     mutable RecursiveMutex cs;
 
@@ -36,6 +37,9 @@ private:
     bool GetMasternodeVin(CTxIn& vin, CPubKey& pubkey, CKey& secretKey, std::string strTxHash, std::string strOutputIndex);
 
 public:
+
+    bool startMessage{false};
+
     // Initialized by init.cpp
     // Keys for the main Masternode
     CPubKey pubKeyMasternode;
