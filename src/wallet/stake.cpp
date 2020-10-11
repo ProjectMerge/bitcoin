@@ -56,6 +56,7 @@ bool CStake::MintableCoins()
     auto m_wallet = GetMainWallet();
     auto locked_chain = m_wallet->chain().lock();
     LOCK(m_wallet->cs_wallet);
+    SetUsableInputs(false);
 
     CCoinControl coin_control;
     CAmount nBalance = m_wallet->GetBalance(0, coin_control.m_avoid_address_reuse).m_mine_trusted;
@@ -66,8 +67,10 @@ bool CStake::MintableCoins()
     m_wallet->AvailableCoins(*locked_chain, vCoins, true);
 
     for (const COutput& out : vCoins) {
-        if (GetAdjustedTime() - out.tx->GetTxTime() > Params().GetConsensus().MinStakeAge())
+        if (GetAdjustedTime() - out.tx->GetTxTime() > Params().GetConsensus().MinStakeAge()) {
+            SetUsableInputs(true);
             return true;
+        }
     }
 
     return false;
