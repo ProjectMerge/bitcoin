@@ -675,6 +675,8 @@ void GenerateBitcoins(bool fGenerate, int nThreads, const CChainParams& chainpar
 void ThreadStakeMinter(const CChainParams &chainparams, CConnman &connman)
 {
     boost::this_thread::interruption_point();
+    if (!gArgs.GetBoolArg("-staking", true))
+        return;
     LogPrintf("ThreadStakeMinter started\n");
     try {
         auto pwalletMain = GetMainWallet();
