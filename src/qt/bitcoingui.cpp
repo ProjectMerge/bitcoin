@@ -1381,6 +1381,7 @@ void BitcoinGUI::setEncryptionStatus(WalletModel *walletModel)
         encryptWalletAction->setEnabled(true);
         break;
     case WalletModel::Unlocked:
+    case WalletModel::UnlockedForStakingOnly:
         labelWalletEncryptionIcon->show();
         if(walletModel->getWalletUnlockStakingOnly())
         {
@@ -1485,7 +1486,7 @@ void BitcoinGUI::updateStakingIcon()
         return;
 
     WalletView * const walletView = walletFrame ? walletFrame->currentWalletView() : 0;
-    if (!walletView) {
+    if (!walletView || !stake.HasUsableInputs()) {
         // Not staking because wallet is closed
         labelStakingIcon->setPixmap(platformStyle->SingleColorIcon(":/icons/staking_off").pixmap(STATUSBAR_ICONSIZE, STATUSBAR_ICONSIZE));
         labelStakingIcon->setToolTip(tr("Not staking"));

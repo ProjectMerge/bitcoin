@@ -529,14 +529,17 @@ void static BitcoinMiner(const CChainParams& chainparams, CConnman& connman, CWa
                 bool fvNodesEmpty = connman.GetNodeCount(CConnman::CONNECTIONS_ALL) == 0;
                 if (!fvNodesEmpty && !::ChainstateActive().IsInitialBlockDownload() && masternodeSync.IsSynced())
                     break;
+                if (ShutdownRequested())
+                    return;
                 MilliSleep(1000);
             } while (true);
 
             if(fProofOfStake)
             {
                 if (::ChainActive().Tip()->nHeight+1 < chainparams.GetConsensus().nLastPoWBlock ||
-                    pwallet->IsLocked() || !masternodeSync.IsSynced())
-                {
+                    pwallet->IsLocked() || !masternodeSync.IsSynced()) {
+                    if (ShutdownRequested())
+                        return;
                     pwallet->m_last_coin_stake_search_interval = 0;
                     MilliSleep(1000);
                     continue;
@@ -672,6 +675,8 @@ void GenerateBitcoins(bool fGenerate, int nThreads, const CChainParams& chainpar
 void ThreadStakeMinter(const CChainParams &chainparams, CConnman &connman)
 {
     boost::this_thread::interruption_point();
+    if (!gArgs.GetBoolArg("-staking", true))
+        return;
     LogPrintf("ThreadStakeMinter started\n");
     try {
         auto pwalletMain = GetMainWallet();

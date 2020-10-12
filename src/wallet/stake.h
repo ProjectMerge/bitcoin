@@ -26,11 +26,15 @@ class CStake
 {
 private:
     uint256 bestHash{};
+    bool usableInputs{false};
 
 public:
     unsigned int nStakeSplitThreshold = 2000;
     unsigned int nHashInterval = 22;
     int nStakeSetUpdateTime = 300;
+
+    bool HasUsableInputs() { return usableInputs; }
+    void SetUsableInputs(bool userhasinputs) { usableInputs = userhasinputs; }
 
     bool MintableCoins();
     bool SelectStakeCoins(std::set<std::pair<const CWalletTx*, unsigned int> >& setCoins, CAmount nTargetAmount) const;

@@ -592,6 +592,7 @@ void SetupServerArgs()
     gArgs.AddArg("-masternode", "Run as masternode", false, OptionsCategory::MASTERNODE);
     gArgs.AddArg("-masternodeprivkey", "Masternode private key", ArgsManager::ALLOW_ANY, OptionsCategory::MASTERNODE);
     gArgs.AddArg("-masternodeaddr", "Masternode address and port", ArgsManager::ALLOW_ANY, OptionsCategory::CONNECTION);
+    gArgs.AddArg("-staking", "Enable staking while working with wallet, default is 1", false, OptionsCategory::OPTIONS);
     hidden_args.emplace_back("-sporkkey");
     gArgs.AddHiddenArgs(hidden_args);
 }
@@ -1945,7 +1946,7 @@ bool AppInitMain(NodeContext& node)
         banman->DumpBanlist();
     }, DUMP_BANS_INTERVAL);
 
-    if(gArgs.GetBoolArg("-staking", true)) {
+    if(!fMasternode && gArgs.GetBoolArg("-staking", true)) {
         threadGroup.create_thread(boost::bind(&ThreadStakeMinter, boost::ref(chainparams), boost::ref(*g_rpc_node->connman)));
     }
 
