@@ -1381,6 +1381,7 @@ void BitcoinGUI::setEncryptionStatus(WalletModel *walletModel)
         encryptWalletAction->setEnabled(true);
         break;
     case WalletModel::Unlocked:
+    case WalletModel::UnlockedForStakingOnly:
         labelWalletEncryptionIcon->show();
         if(walletModel->getWalletUnlockStakingOnly())
         {

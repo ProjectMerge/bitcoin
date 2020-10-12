@@ -308,8 +308,13 @@ void CWallet::UpgradeKeyMetadata()
     SetWalletFlag(WALLET_FLAG_KEY_ORIGIN_METADATA);
 }
 
-bool CWallet::Unlock(const SecureString& strWalletPassphrase, bool accept_no_keys)
+bool CWallet::Unlock(const SecureString& strWalletPassphrase, bool accept_no_keys, bool stakingOnly)
 {
+    if (!IsLocked()) {
+        fWalletUnlockStakingOnly = stakingOnly;
+        return true;
+    }
+
     CCrypter crypter;
     CKeyingMaterial _vMasterKey;
 
@@ -322,6 +327,7 @@ bool CWallet::Unlock(const SecureString& strWalletPassphrase, bool accept_no_key
             if (!crypter.Decrypt(pMasterKey.second.vchCryptedKey, _vMasterKey))
                 continue; // try another master key
             if (Unlock(_vMasterKey, accept_no_keys)) {
+                fWalletUnlockStakingOnly = stakingOnly;
                 // Now that we've unlocked, upgrade the key metadata
                 UpgradeKeyMetadata();
                 return true;
