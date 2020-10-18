@@ -176,11 +176,6 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
         return StakingOnlyUnlocked;
     }
 
-    if (isStakingOnlyUnlocked())
-    {
-        return StakingOnlyUnlocked;
-    }
-
     QSet<QString> setAddress; // Used to detect duplicates
     int nAddresses = 0;
 
@@ -261,11 +256,6 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction &tran
         return StakingOnlyUnlocked;
     }
 
-    if (isStakingOnlyUnlocked())
-    {
-        return StakingOnlyUnlocked;
-    }
-
     {
         std::vector<std::pair<std::string, std::string>> vOrderForm;
         for (const SendCoinsRecipient &rcp : transaction.getRecipients())
@@ -341,10 +331,6 @@ WalletModel::EncryptionStatus WalletModel::getEncryptionStatus() const
     else if(m_wallet->isLocked())
     {
         return Locked;
-    }
-    else if(m_wallet->isLockedForStaking())
-    {
-        return UnlockedForStakingOnly;
     }
     else if(m_wallet->isLockedForStaking())
     {
@@ -459,7 +445,6 @@ static void ShowProgress(WalletModel *walletmodel, const std::string &title, int
     bool invoked = QMetaObject::invokeMethod(walletmodel, "showProgress", Qt::QueuedConnection,
                               Q_ARG(QString, QString::fromStdString(title)),
                               Q_ARG(int, nProgress));
-    assert(invoked);
 }
 
 static void NotifyWatchonlyChanged(WalletModel *walletmodel, bool fHaveWatchonly)
@@ -504,8 +489,7 @@ WalletModel::UnlockContext WalletModel::requestUnlock()
 {
     bool was_locked = getEncryptionStatus() == Locked;
 
-    if ((!was_locked) && getWalletUnlockStakingOnly())
-    {
+    if (!was_locked && isStakingOnlyUnlocked()) {
        setWalletLocked(true);
        was_locked = getEncryptionStatus() == Locked;
     }
@@ -518,20 +502,14 @@ WalletModel::UnlockContext WalletModel::requestUnlock()
     // If wallet is still locked, unlock was failed or cancelled, mark context as invalid
     bool valid = getEncryptionStatus() != Locked;
 
-    return UnlockContext(this, valid, was_locked && !getWalletUnlockStakingOnly());
+    return UnlockContext(this, valid, was_locked);
 }
 
 WalletModel::UnlockContext::UnlockContext(WalletModel *_wallet, bool _valid, bool _relock):
         wallet(_wallet),
         valid(_valid),
-        relock(_relock),
-        stakingOnly(false)
+        relock(_relock)
 {
-    if(!relock)
-    {
-        stakingOnly = wallet->getWalletUnlockStakingOnly();
-        wallet->setWalletUnlockStakingOnly(false);
-    }
 }
 
 WalletModel::UnlockContext::~UnlockContext()
@@ -539,12 +517,6 @@ WalletModel::UnlockContext::~UnlockContext()
     if(valid && relock)
     {
         wallet->setWalletLocked(true);
-    }
-
-    if(!relock)
-    {
-        wallet->setWalletUnlockStakingOnly(stakingOnly);
-        wallet->updateStatus();
     }
 }
 
@@ -698,16 +670,6 @@ bool WalletModel::restore()
 uint64_t WalletModel::getStakeWeight()
 {
     return nWeight;
-}
-
-bool WalletModel::getWalletUnlockStakingOnly()
-{
-    return m_wallet->getWalletUnlockStakingOnly();
-}
-
-void WalletModel::setWalletUnlockStakingOnly(bool unlock)
-{
-    m_wallet->setWalletUnlockStakingOnly(unlock);
 }
 
 void WalletModel::checkCoinAddressesChanged()

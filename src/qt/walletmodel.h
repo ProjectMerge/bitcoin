@@ -76,8 +76,8 @@ public:
     {
         Unencrypted,  // !wallet->IsCrypted()
         Locked,       // wallet->IsCrypted() && wallet->IsLocked()
-        UnlockedForStakingOnly, // wallet->IsCrypted() && !wallet->IsLocked() && wallet->fWalletUnlockStakingOnly
-        Unlocked      // wallet->IsCrypted() && !wallet->IsLocked()
+        Unlocked,               // wallet->IsCrypted() && !wallet->IsLocked()
+        UnlockedForStakingOnly // wallet->IsCrypted() && !wallet->IsLocked() && wallet->fWalletUnlockStakingOnly
     };
 
     OptionsModel *getOptionsModel();
@@ -114,9 +114,6 @@ public:
     bool setWalletLocked(bool locked, const SecureString &passPhrase=SecureString(), bool stakingOnly=false);
     bool changePassphrase(const SecureString &oldPass, const SecureString &newPass);
     bool restoreWallet(const QString &filename, const QString &param);
-    bool getWalletUnlockStakingOnly();
-    void setWalletUnlockStakingOnly(bool unlock);
-
     // Is wallet unlocked for staking only?
     bool isStakingOnlyUnlocked();
 
@@ -138,7 +135,6 @@ public:
         WalletModel *wallet;
         bool valid;
         mutable bool relock; // mutable, as it can be set to false by copying
-        bool stakingOnly;
 
         UnlockContext& operator=(const UnlockContext&) = default;
         void CopyFrom(UnlockContext&& rhs);
@@ -176,11 +172,9 @@ private:
     std::unique_ptr<interfaces::Handler> m_handler_status_changed;
     std::unique_ptr<interfaces::Handler> m_handler_address_book_changed;
     std::unique_ptr<interfaces::Handler> m_handler_transaction_changed;
-    std::unique_ptr<interfaces::Handler> m_handler_token_changed;
     std::unique_ptr<interfaces::Handler> m_handler_show_progress;
     std::unique_ptr<interfaces::Handler> m_handler_watch_only_changed;
     std::unique_ptr<interfaces::Handler> m_handler_can_get_addrs_changed;
-    std::unique_ptr<interfaces::Handler> m_handler_contract_book_changed;
     interfaces::Node& m_node;
 
     bool fHaveWatchOnly;
