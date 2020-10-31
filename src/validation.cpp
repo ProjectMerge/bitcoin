@@ -2406,8 +2406,8 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
 
     ////////////////////////////////// MERGE : MODIFIED TO CHECK MASTERNODE PAYMENTS AND SUPERBLOCKS //
 
-    if (!control.Wait()) {
-        if (!isExceptionBlock(hashPrevBlock)) {
+    if (!isExceptionBlock(hashPrevBlock)) {
+        if (!control.Wait()) {
             LogPrintf("ERROR: %s: CheckQueue failed\n", __func__);
            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "block-validation-failed");
         }
