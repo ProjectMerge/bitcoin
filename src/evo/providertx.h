@@ -28,9 +28,9 @@ public:
     uint16_t nMode{0};                                     // only 0 supported for now
     COutPoint collateralOutpoint{uint256(), (uint32_t)-1}; // if hash is null, we refer to a ProRegTx output
     CService addr;
-    WitnessV0KeyHash keyIDOwner;
+    CKeyID keyIDOwner;
     CBLSPublicKey pubKeyOperator;
-    WitnessV0KeyHash keyIDVoting;
+    CKeyID keyIDVoting;
     uint16_t nOperatorReward{0};
     CScript scriptPayout;
     uint256 inputsHash; // replay protection
@@ -47,9 +47,9 @@ public:
         READWRITE(nMode);
         READWRITE(collateralOutpoint);
         READWRITE(addr);
-        READWRITE(keyIDOwner);
+        READWRITE(PKHash(keyIDOwner));
         READWRITE(pubKeyOperator);
-        READWRITE(keyIDVoting);
+        READWRITE(PKHash(keyIDVoting));
         READWRITE(nOperatorReward);
         READWRITE(scriptPayout);
         READWRITE(inputsHash);
@@ -72,8 +72,8 @@ public:
         obj.pushKV("collateralHash", collateralOutpoint.hash.ToString());
         obj.pushKV("collateralIndex", (int)collateralOutpoint.n);
         obj.pushKV("service", addr.ToString(false));
-        obj.pushKV("ownerAddress", EncodeDestination(keyIDOwner));
-        obj.pushKV("votingAddress", EncodeDestination(keyIDVoting));
+        obj.pushKV("ownerAddress", EncodeDestination(PKHash(keyIDOwner)));
+        obj.pushKV("votingAddress", EncodeDestination(PKHash(keyIDVoting)));
 
         CTxDestination dest;
         if (ExtractDestination(scriptPayout, dest)) {
@@ -143,7 +143,7 @@ public:
     uint256 proTxHash;
     uint16_t nMode{0}; // only 0 supported for now
     CBLSPublicKey pubKeyOperator;
-    WitnessV0KeyHash keyIDVoting;
+    CKeyID keyIDVoting;
     CScript scriptPayout;
     uint256 inputsHash; // replay protection
     std::vector<unsigned char> vchSig;
@@ -158,7 +158,7 @@ public:
         READWRITE(proTxHash);
         READWRITE(nMode);
         READWRITE(pubKeyOperator);
-        READWRITE(keyIDVoting);
+        READWRITE(PKHash(keyIDVoting));
         READWRITE(scriptPayout);
         READWRITE(inputsHash);
         if (!(s.GetType() & SER_GETHASH)) {
@@ -175,7 +175,7 @@ public:
         obj.setObject();
         obj.pushKV("version", nVersion);
         obj.pushKV("proTxHash", proTxHash.ToString());
-        obj.pushKV("votingAddress", EncodeDestination(keyIDVoting));
+        obj.pushKV("votingAddress", EncodeDestination(PKHash(keyIDVoting)));
         CTxDestination dest;
         if (ExtractDestination(scriptPayout, dest)) {
             obj.pushKV("payoutAddress", EncodeDestination(dest));

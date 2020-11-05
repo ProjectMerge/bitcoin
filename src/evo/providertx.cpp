@@ -106,9 +106,7 @@ bool CheckProRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, TxVali
     if (ptx.keyIDOwner.IsNull() || !ptx.pubKeyOperator.IsValid() || ptx.keyIDVoting.IsNull()) {
         return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-key-null");
     }
-    int witnessversion;
-    std::vector<unsigned char> witnessprogram;
-    if (!ptx.scriptPayout.IsPayToPublicKeyHash() && !ptx.scriptPayout.IsPayToScriptHash() && !ptx.scriptPayout.IsWitnessProgram(witnessversion, witnessprogram)) {
+    if (!ptx.scriptPayout.IsPayToPublicKeyHash() && !ptx.scriptPayout.IsPayToScriptHash()) {
         return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-payee");
     }
 
@@ -119,7 +117,7 @@ bool CheckProRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, TxVali
     }
 
     // don't allow reuse of payout key for other keys (don't allow people to put the payee key onto an online server)
-    if (payoutDest == CTxDestination(ptx.keyIDOwner) || payoutDest == CTxDestination(ptx.keyIDVoting)) {
+    if (payoutDest == CTxDestination(PKHash(ptx.keyIDOwner)) || payoutDest == CTxDestination(PKHash(ptx.keyIDVoting))) {
         return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-payee-reuse");
     }
 
@@ -137,11 +135,10 @@ bool CheckProRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, TxVali
     CTxDestination collateralTxDest;
     CKeyID keyForPayloadSig;
     COutPoint collateralOutpoint;
-    CAmount nMNCollateralRequired = Params().GetConsensus().nCollateralAmount;
 
     if (!ptx.collateralOutpoint.hash.IsNull()) {
         Coin coin;
-        if (!GetUTXOCoin(ptx.collateralOutpoint, coin) || coin.out.nValue != nMNCollateralRequired) {
+        if (!GetUTXOCoin(ptx.collateralOutpoint, coin) || coin.out.nValue != Params().GetConsensus().nCollateralAmount) {
             return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-collateral");
         }
         if (!ExtractDestination(coin.out.scriptPubKey, collateralTxDest)) {
@@ -164,7 +161,7 @@ bool CheckProRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, TxVali
         if (ptx.collateralOutpoint.n >= tx.vout.size()) {
             return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-collateral-index");
         }
-        if (tx.vout[ptx.collateralOutpoint.n].nValue != nMNCollateralRequired) {
+        if (tx.vout[ptx.collateralOutpoint.n].nValue != Params().GetConsensus().nCollateralAmount) {
             return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-collateral");
         }
         if (!ExtractDestination(tx.vout[ptx.collateralOutpoint.n].scriptPubKey, collateralTxDest)) {
@@ -176,7 +173,7 @@ bool CheckProRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, TxVali
 
     // don't allow reuse of collateral key for other keys (don't allow people to put the collateral key onto an online server)
     // this check applies to internal and external collateral, but internal collaterals are not necessarely a P2PKH
-    if (collateralTxDest == CTxDestination(ptx.keyIDOwner) || collateralTxDest == CTxDestination(ptx.keyIDVoting)) {
+    if (collateralTxDest == CTxDestination(PKHash(ptx.keyIDOwner)) || collateralTxDest == CTxDestination(PKHash(ptx.keyIDVoting))) {
         return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-collateral-reuse");
     }
 
@@ -252,9 +249,7 @@ bool CheckProUpServTx(const CTransaction& tx, const CBlockIndex* pindexPrev, TxV
                 // don't allow to set operator reward payee in case no operatorReward was set
                 return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-operator-payee");
             }
-            int witnessversion;
-            std::vector<unsigned char> witnessprogram;
-            if (!ptx.scriptOperatorPayout.IsPayToPublicKeyHash() && !ptx.scriptOperatorPayout.IsPayToScriptHash() && !ptx.scriptOperatorPayout.IsWitnessProgram(witnessversion, witnessprogram)) {
+            if (!ptx.scriptOperatorPayout.IsPayToPublicKeyHash() && !ptx.scriptOperatorPayout.IsPayToScriptHash()) {
                 return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-operator-payee");
             }
         }
@@ -292,9 +287,7 @@ bool CheckProUpRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, TxVa
     if (!ptx.pubKeyOperator.IsValid() || ptx.keyIDVoting.IsNull()) {
         return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-key-null");
     }
-    int witnessversion;
-    std::vector<unsigned char> witnessprogram;
-    if (!ptx.scriptPayout.IsPayToPublicKeyHash() && !ptx.scriptPayout.IsPayToScriptHash() && !ptx.scriptPayout.IsWitnessProgram(witnessversion, witnessprogram)) {
+    if (!ptx.scriptPayout.IsPayToPublicKeyHash() && !ptx.scriptPayout.IsPayToScriptHash()) {
         return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-payee");
     }
 
@@ -312,7 +305,7 @@ bool CheckProUpRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, TxVa
         }
 
         // don't allow reuse of payee key for other keys (don't allow people to put the payee key onto an online server)
-        if (payoutDest == CTxDestination(dmn->pdmnState->keyIDOwner) || payoutDest == CTxDestination(ptx.keyIDVoting)) {
+        if (payoutDest == CTxDestination(PKHash(dmn->pdmnState->keyIDOwner)) || payoutDest == CTxDestination(PKHash(ptx.keyIDVoting))) {
             return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-payee-reuse");
         }
 
@@ -327,7 +320,7 @@ bool CheckProUpRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, TxVa
         if (!ExtractDestination(coin.out.scriptPubKey, collateralTxDest)) {
             return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-collateral-dest");
         }
-        if (collateralTxDest == CTxDestination(dmn->pdmnState->keyIDOwner) || collateralTxDest == CTxDestination(ptx.keyIDVoting)) {
+        if (collateralTxDest == CTxDestination(PKHash(dmn->pdmnState->keyIDOwner)) || collateralTxDest == CTxDestination(PKHash(ptx.keyIDVoting))) {
             return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-collateral-reuse");
         }
 
@@ -342,7 +335,7 @@ bool CheckProUpRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, TxVa
             // pass the state returned by the function above
             return false;
         }
-        if (!CheckHashSig(ptx, CKeyID(dmn->pdmnState->keyIDOwner), state)) {
+        if (!CheckHashSig(ptx, CKeyID(PKHash(dmn->pdmnState->keyIDOwner)), state)) {
             // pass the state returned by the function above
             return false;
         }
@@ -407,8 +400,8 @@ std::string CProRegTx::MakeSignString() const
 
     s += strPayout + "|";
     s += strprintf("%d", nOperatorReward) + "|";
-    s += EncodeDestination(keyIDOwner) + "|";
-    s += EncodeDestination(keyIDVoting) + "|";
+    s += EncodeDestination(PKHash(keyIDOwner)) + "|";
+    s += EncodeDestination(PKHash(keyIDVoting)) + "|";
 
     // ... and also the full hash of the payload as a protection agains malleability and replays
     s += ::SerializeHash(*this).ToString();
@@ -425,7 +418,7 @@ std::string CProRegTx::ToString() const
     }
 
     return strprintf("CProRegTx(nVersion=%d, collateralOutpoint=%s, addr=%s, nOperatorReward=%f, ownerAddress=%s, pubKeyOperator=%s, votingAddress=%s, scriptPayout=%s)",
-        nVersion, collateralOutpoint.ToStringShort(), addr.ToString(), (double)nOperatorReward / 100, EncodeDestination(keyIDOwner), pubKeyOperator.ToString(), EncodeDestination(keyIDVoting), payee);
+        nVersion, collateralOutpoint.ToStringShort(), addr.ToString(), (double)nOperatorReward / 100, EncodeDestination(PKHash(keyIDOwner)), pubKeyOperator.ToString(), EncodeDestination(PKHash(keyIDVoting)), payee);
 }
 
 std::string CProUpServTx::ToString() const
@@ -449,7 +442,7 @@ std::string CProUpRegTx::ToString() const
     }
 
     return strprintf("CProUpRegTx(nVersion=%d, proTxHash=%s, pubKeyOperator=%s, votingAddress=%s, payoutAddress=%s)",
-        nVersion, proTxHash.ToString(), pubKeyOperator.ToString(), EncodeDestination(keyIDVoting), payee);
+        nVersion, proTxHash.ToString(), pubKeyOperator.ToString(), EncodeDestination(PKHash(keyIDVoting)), payee);
 }
 
 std::string CProUpRevTx::ToString() const
