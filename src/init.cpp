@@ -75,6 +75,7 @@
 
 #include <evo/deterministicmns.h>
 #include <llmq/quorums_init.h>
+#include <llmq/quorums_blockprocessor.h>
 
 #include <bls/bls.h>
 
@@ -271,11 +272,6 @@ void Shutdown(NodeContext& node)
         }
     }
 
-    //! llmq & evodb destroy
-    llmq::DestroyLLMQSystem();
-    deterministicMNManager.reset();
-    evoDb.reset();
-
     //! call destructors
     activeMasternodeInfo.blsKeyOperator.reset();
     activeMasternodeInfo.blsPubKeyOperator.reset();
@@ -306,6 +302,12 @@ void Shutdown(NodeContext& node)
         }
         pblocktree.reset();
     }
+
+    //! llmq & evodb destroy
+    llmq::DestroyLLMQSystem();
+    deterministicMNManager.reset();
+    evoDb.reset();
+
     for (const auto& client : node.chain_clients) {
         client->stop();
     }
@@ -1611,10 +1613,6 @@ bool AppInitMain(NodeContext& node)
 
                 llmq::InitLLMQSystem(*evoDb, *g_rpc_node->connman, false, fReset || fReindexChainState);
 
-                if (fReset) {
-                    pblocktree->WriteReindexing(true);
-                }
-
                 if (ShutdownRequested()) break;
 
                 // From here on out fReindex and fReset mean something different!
@@ -1698,9 +1696,22 @@ bool AppInitMain(NodeContext& node)
                 }
             }
 
+            // flush evodb
+            if (!evoDb->CommitRootTransaction()) {
+                strLoadError = _("Failed to commit EvoDB").translated;
+                break;
+            }
+
             try {
                 LOCK(cs_main);
                 if (!is_coinsview_empty) {
+
+                    if (is_coinsview_empty && !evoDb->IsEmpty()) {
+                        // EvoDB processed some blocks earlier but we have no blocks anymore, something is wrong
+                        strLoadError = _("Error initializing block database").translated;
+                        break;
+                    }
+
                     uiInterface.InitMessage(_("Verifying blocks...").translated);
 
                     CBlockIndex* tip = ::ChainActive().Tip();

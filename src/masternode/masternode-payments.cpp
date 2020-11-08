@@ -68,8 +68,9 @@ void FillBlockPayments(CMutableTransaction& txNew, int nBlockHeight, CAmount blo
         voutMasternodeStr += txout.ToString();
     }
 
-    LogPrint(BCLog::MNPAYMENTS, "%s -- nBlockHeight %d blockReward %lld voutMasternodePaymentsRet \"%s\" txNew %s", __func__, /* Continued */
-                            nBlockHeight, blockReward, voutMasternodeStr, txNew.ToString());
+    if (!voutMasternodeStr.empty())
+        LogPrint(BCLog::MNPAYMENTS, "%s -- nBlockHeight %d blockReward %lld voutMasternodePaymentsRet \"%s\"\n", __func__,
+                                    nBlockHeight, blockReward, voutMasternodeStr);
 }
 
 std::string GetRequiredPaymentsString(int nBlockHeight, const CDeterministicMNCPtr &payee)

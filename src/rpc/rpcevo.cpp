@@ -124,6 +124,37 @@ std::string GetHelpString(int nParamNum, std::string strParamName)
     return strprintf(it->second, nParamNum);
 }
 
+static CKey ParsePrivKey(CWallet* pwallet, const std::string &strKeyOrAddress, bool allowAddresses = true) {
+#ifdef ENABLE_WALLET
+    if (!pwallet) {
+        throw std::runtime_error("addresses not supported when wallet is disabled");
+    }
+    LegacyScriptPubKeyMan& spk_man = EnsureLegacyScriptPubKeyMan(*pwallet);
+
+    LOCK2(pwallet->cs_wallet, spk_man.cs_KeyStore);
+
+    EnsureWalletIsUnlocked(pwallet);
+
+    CTxDestination dest = DecodeDestination(strKeyOrAddress);
+    if (allowAddresses && IsValidDestination(dest)) {
+        auto keyId = GetKeyForDestination(spk_man, dest);
+        if (keyId.IsNull())
+            throw JSONRPCError(RPC_TYPE_ERROR, "Address does not refer to a key");
+        CKey key;
+        if (!spk_man.GetKey(keyId, key))
+            throw std::runtime_error(strprintf("non-wallet or invalid address %s", strKeyOrAddress));
+        return key;
+    }
+#else//ENABLE_WALLET
+        throw std::runtime_error("addresses not supported in no-wallet builds");
+#endif//ENABLE_WALLET
+    CKey key = DecodeSecret(strKeyOrAddress);
+    if (!key.IsValid()) {
+        throw std::runtime_error(strprintf("invalid priv-key/address %s", strKeyOrAddress));
+    }
+    return key;
+}
+
 static CKeyID ParsePubKeyIDFromAddress(CWallet* pwallet, const std::string& strAddress, const std::string& paramName)
 {
     LegacyScriptPubKeyMan& spk_man = EnsureLegacyScriptPubKeyMan(*pwallet);
@@ -193,6 +224,7 @@ static void FundSpecialTx(CWallet* pwallet, CMutableTransaction& tx, const Speci
 
     std::vector<COutput> vecOutputs;
     auto locked_chain = pwallet->chain().lock();
+    LOCK(pwallet->cs_wallet);
     pwallet->AvailableCoins(*locked_chain, vecOutputs);
 
     for (const auto& out : vecOutputs) {
@@ -385,6 +417,7 @@ UniValue protx_register(const JSONRPCRequest& request)
     std::shared_ptr<CWallet> const wallet = GetWalletForJSONRPCRequest(request);
     if (!wallet) return NullUniValue;
     CWallet* const pwallet = wallet.get();
+    LegacyScriptPubKeyMan& spk_man = EnsureLegacyScriptPubKeyMan(*pwallet);
 
     bool isExternalRegister = request.params[0].get_str() == "register";
     bool isFundRegister = request.params[0].get_str() == "register_fund";
@@ -419,7 +452,7 @@ UniValue protx_register(const JSONRPCRequest& request)
     if (isFundRegister) {
         CTxDestination collateralDest = DecodeDestination(request.params[paramIdx].get_str());
         if (!IsValidDestination(collateralDest)) {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, strprintf("invalid collaterall address: %s", request.params[paramIdx].get_str()));
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, strprintf("invalid collateral address: %s", request.params[paramIdx].get_str()));
         }
         CScript collateralScript = GetScriptForDestination(collateralDest);
 
@@ -448,9 +481,9 @@ UniValue protx_register(const JSONRPCRequest& request)
         }
     }
 
-    ptx.keyIDOwner = ParsePubKeyIDFromAddress(pwallet, request.params[paramIdx + 1].get_str(), "owner address");
+    CKey keyOwner = ParsePrivKey(pwallet, request.params[paramIdx + 1].get_str(), true);
     CBLSPublicKey pubKeyOperator = ParseBLSPubKey(request.params[paramIdx + 2].get_str(), "operator BLS address");
-    CKeyID keyIDVoting = ptx.keyIDOwner;
+    CKeyID keyIDVoting = keyOwner.GetPubKey().GetID();
 
     if (request.params[paramIdx + 3].get_str() != "") {
         keyIDVoting = ParsePubKeyIDFromAddress(pwallet, request.params[paramIdx + 3].get_str(), "voting address");
@@ -470,6 +503,7 @@ UniValue protx_register(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, strprintf("invalid payout address: %s", request.params[paramIdx + 5].get_str()));
     }
 
+    ptx.keyIDOwner = keyOwner.GetPubKey().GetID();
     ptx.pubKeyOperator = pubKeyOperator;
     ptx.keyIDVoting = keyIDVoting;
     ptx.scriptPayout = GetScriptForDestination(payoutDest);
@@ -510,11 +544,11 @@ UniValue protx_register(const JSONRPCRequest& request)
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, strprintf("collateral not found: %s", ptx.collateralOutpoint.ToStringShort()));
         }
         CTxDestination txDest;
-        ExtractDestination(coin.out.scriptPubKey, txDest);
         CKeyID keyID;
-        if (auto key_id = boost::get<PKHash>(&txDest)) {
-            keyID = CKeyID(*key_id);
+        if (!ExtractDestination(coin.out.scriptPubKey, txDest)) {
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, strprintf("collateral type not supported: %s", ptx.collateralOutpoint.ToString()));
         }
+        keyID = GetKeyForDestination(spk_man, txDest);
         if (keyID.IsNull()) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, strprintf("collateral type not supported: %s", ptx.collateralOutpoint.ToStringShort()));
         }
@@ -727,23 +761,16 @@ UniValue protx_update_registrar(const JSONRPCRequest& request)
         ptx.keyIDVoting = ParsePubKeyIDFromAddress(pwallet, request.params[3].get_str(), "voting address");
     }
 
-    CTxDestination payoutDest;
-    ExtractDestination(ptx.scriptPayout, payoutDest);
-    if (request.params[4].get_str() != "") {
-        payoutDest = DecodeDestination(request.params[4].get_str());
-        if (!IsValidDestination(payoutDest)) {
+    CTxDestination payoutDest = DecodeDestination(request.params[4].get_str());
+    if (!IsValidDestination(payoutDest)) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, strprintf("invalid payout address: %s", request.params[4].get_str()));
-        }
-        ptx.scriptPayout = GetScriptForDestination(payoutDest);
     }
+    ptx.scriptPayout = GetScriptForDestination(payoutDest);
 
     CKey keyOwner;
-    {
-        LegacyScriptPubKeyMan& spk_man = EnsureLegacyScriptPubKeyMan(*pwallet);
-        LOCK2(pwallet->cs_wallet, spk_man.cs_KeyStore);
-        if (!spk_man.GetKey(CKeyID(dmn->pdmnState->keyIDOwner), keyOwner)) {
-            throw std::runtime_error(strprintf("Private key for owner address %s not found in your wallet", EncodeDestination(PKHash(dmn->pdmnState->keyIDOwner))));
-        }
+    LegacyScriptPubKeyMan& spk_man = EnsureLegacyScriptPubKeyMan(*pwallet);
+    if (!spk_man.GetKey(CKeyID(dmn->pdmnState->keyIDOwner), keyOwner)) {
+        throw std::runtime_error(strprintf("Private key for owner address %s not found in your wallet", EncodeDestination(PKHash(dmn->pdmnState->keyIDOwner))));
     }
 
     CMutableTransaction tx;

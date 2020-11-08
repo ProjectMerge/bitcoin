@@ -326,9 +326,9 @@ public:
         consensus.BIP34Hash = uint256();
         consensus.BIP65Height = std::numeric_limits<int>::max();
         consensus.BIP66Height = std::numeric_limits<int>::max();
-        consensus.CSVHeight = std::numeric_limits<int>::max();
-        consensus.SegwitHeight = std::numeric_limits<int>::max();
-        consensus.MinBIP9WarningHeight = std::numeric_limits<int>::max();
+        consensus.CSVHeight = 0;
+        consensus.SegwitHeight = 0;
+        consensus.MinBIP9WarningHeight = 0;
         consensus.powLimit = uint256S("007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 10 * 60;
         consensus.nPowTargetSpacing =  1 * 60;
@@ -355,6 +355,10 @@ public:
         consensus.DIP0003EnforcementHeight = 1500;
         consensus.DIP0003EnforcementHash = uint256S("0000000000000000000000000000000000000000000000000000000000000000");
         consensus.DIP0008Height = 3000;
+
+        consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].bit = 28;
+        consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].nStartTime = 1199145601; // January 1, 2008
+        consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].nTimeout = 1230767999; // December 31, 2008
 
         // The best chain should have at least this much work.
         consensus.nMinimumChainWork = uint256S("0000000000000000000000000000000000000000000000000000000000000000");

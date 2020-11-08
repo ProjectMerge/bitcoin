@@ -25,17 +25,14 @@ public:
     uint256 merkleRootQuorums;
 
 public:
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
+public:
+    SERIALIZE_METHODS(CCbTx, obj)
     {
-        READWRITE(nVersion);
-        READWRITE(nHeight);
-        READWRITE(merkleRootMNList);
-
-        if (nVersion >= 2) {
-            READWRITE(merkleRootQuorums);
+        READWRITE(obj.nVersion);
+        READWRITE(obj.nHeight);
+        READWRITE(obj.merkleRootMNList);
+        if (obj.nVersion >= 2) {
+            READWRITE(obj.merkleRootQuorums);
         }
     }
 
@@ -56,8 +53,8 @@ public:
 
 bool CheckCbTx(const CTransaction& tx, const CBlockIndex* pindexPrev, TxValidationState& state);
 
-bool CheckCbTxMerkleRoots(const CBlock& block, const CBlockIndex* pindex, TxValidationState& state);
-bool CalcCbTxMerkleRootMNList(const CBlock& block, const CBlockIndex* pindexPrev, uint256& merkleRootRet, TxValidationState& state);
-bool CalcCbTxMerkleRootQuorums(const CBlock& block, const CBlockIndex* pindexPrev, uint256& merkleRootRet, TxValidationState& state);
+bool CheckCbTxMerkleRoots(const CBlock& block, const CBlockIndex* pindex, BlockValidationState& state);
+bool CalcCbTxMerkleRootMNList(const CBlock& block, const CBlockIndex* pindexPrev, uint256& merkleRootRet, BlockValidationState& state);
+bool CalcCbTxMerkleRootQuorums(const CBlock& block, const CBlockIndex* pindexPrev, uint256& merkleRootRet, BlockValidationState& state);
 
 #endif //DASH_CBTX_H

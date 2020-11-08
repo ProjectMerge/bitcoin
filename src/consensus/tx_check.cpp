@@ -18,7 +18,7 @@ bool CheckTransaction(const CTransaction& tx, TxValidationState& state)
 
     // Required for quorum commitments
     bool allowEmptyTxInOut = false;
-    if (tx.nType == TRANSACTION_QUORUM_COMMITMENT) {
+    if (tx.nType == TRANSACTION_COINBASE || tx.nType == TRANSACTION_COINSTAKE || tx.nType == TRANSACTION_QUORUM_COMMITMENT) {
         allowEmptyTxInOut = true;
     }
 

@@ -5,6 +5,7 @@
 
 #include <evo/cbtx.h>
 #include <evo/deterministicmns.h>
+#include <llmq/quorums.h>
 #include <llmq/quorums_blockprocessor.h>
 #include <llmq/quorums_commitment.h>
 #include <evo/simplifiedmns.h>
@@ -12,15 +13,16 @@
 
 #include <chainparams.h>
 #include <consensus/merkle.h>
+#include <univalue.h>
 #include <validation.h>
 
 bool CheckCbTx(const CTransaction& tx, const CBlockIndex* pindexPrev, TxValidationState& state)
 {
-    if (tx.nType != TRANSACTION_COINBASE) {
+    if (tx.nType != TRANSACTION_COINBASE && tx.nType != TRANSACTION_COINSTAKE) {
         return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-cbtx-type");
     }
 
-    if (!tx.IsCoinBase()) {
+    if (!tx.IsCoinBase() && !tx.IsCoinStake()) {
         return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-cbtx-invalid");
     }
 
@@ -48,9 +50,10 @@ bool CheckCbTx(const CTransaction& tx, const CBlockIndex* pindexPrev, TxValidati
 }
 
 // This can only be done after the block has been fully processed, as otherwise we won't have the finished MN list
-bool CheckCbTxMerkleRoots(const CBlock& block, const CBlockIndex* pindex, TxValidationState& state)
+bool CheckCbTxMerkleRoots(const CBlock& block, const CBlockIndex* pindex, BlockValidationState& state)
 {
-    if (block.vtx[0]->nType != TRANSACTION_COINBASE) {
+    bool isProofOfStake = !block.IsProofOfWork();
+    if (block.vtx[isProofOfStake]->nType != TRANSACTION_COINBASE) {
         return true;
     }
 
@@ -61,8 +64,8 @@ bool CheckCbTxMerkleRoots(const CBlock& block, const CBlockIndex* pindex, TxVali
     int64_t nTime1 = GetTimeMicros();
 
     CCbTx cbTx;
-    if (!GetTxPayload(*block.vtx[0], cbTx)) {
-        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-cbtx-payload");
+    if (!GetTxPayload(*block.vtx[isProofOfStake], cbTx)) {
+        return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cbtx-payload");
     }
 
     int64_t nTime2 = GetTimeMicros(); nTimePayload += nTime2 - nTime1;
@@ -75,7 +78,7 @@ bool CheckCbTxMerkleRoots(const CBlock& block, const CBlockIndex* pindex, TxVali
             return false;
         }
         if (calculatedMerkleRoot != cbTx.merkleRootMNList) {
-            return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-cbtx-mnmerkleroot");
+            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cbtx-mnmerkleroot");
         }
 
         int64_t nTime3 = GetTimeMicros(); nTimeMerkleMNL += nTime3 - nTime2;
@@ -87,7 +90,7 @@ bool CheckCbTxMerkleRoots(const CBlock& block, const CBlockIndex* pindex, TxVali
                 return false;
             }
             if (calculatedMerkleRoot != cbTx.merkleRootQuorums) {
-                return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-cbtx-quorummerkleroot");
+                return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cbtx-quorummerkleroot");
             }
         }
 
@@ -99,7 +102,7 @@ bool CheckCbTxMerkleRoots(const CBlock& block, const CBlockIndex* pindex, TxVali
     return true;
 }
 
-bool CalcCbTxMerkleRootMNList(const CBlock& block, const CBlockIndex* pindexPrev, uint256& merkleRootRet, TxValidationState& state)
+bool CalcCbTxMerkleRootMNList(const CBlock& block, const CBlockIndex* pindexPrev, uint256& merkleRootRet, BlockValidationState& state)
 {
     LOCK(deterministicMNManager->cs);
 
@@ -131,7 +134,7 @@ bool CalcCbTxMerkleRootMNList(const CBlock& block, const CBlockIndex* pindexPrev
         if (sml.mnList == smlCached.mnList) {
             merkleRootRet = merkleRootCached;
             if (mutatedCached) {
-                return state.Invalid(TxValidationResult::TX_CONSENSUS, "mutated-cached-calc-cb-mnmerkleroot");
+                return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "mutated-cached-calc-cb-mnmerkleroot");
             }
             return true;
         }
@@ -147,17 +150,17 @@ bool CalcCbTxMerkleRootMNList(const CBlock& block, const CBlockIndex* pindexPrev
         mutatedCached = mutated;
 
         if (mutated) {
-            return state.Invalid(TxValidationResult::TX_CONSENSUS, "mutated-calc-cb-mnmerkleroot");
+            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "mutated-calc-cb-mnmerkleroot");
         }
 
         return true;
     } catch (const std::exception& e) {
         LogPrintf("%s -- failed: %s\n", __func__, e.what());
-        return state.Invalid(TxValidationResult::TX_CONSENSUS, "failed-calc-cb-mnmerkleroot");
+        return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "failed-calc-cb-mnmerkleroot");
     }
 }
 
-bool CalcCbTxMerkleRootQuorums(const CBlock& block, const CBlockIndex* pindexPrev, uint256& merkleRootRet, TxValidationState& state)
+bool CalcCbTxMerkleRootQuorums(const CBlock& block, const CBlockIndex* pindexPrev, uint256& merkleRootRet, BlockValidationState& state)
 {
     static int64_t nTimeMinedAndActive = 0;
     static int64_t nTimeMined = 0;
@@ -187,7 +190,7 @@ bool CalcCbTxMerkleRootQuorums(const CBlock& block, const CBlockIndex* pindexPre
                 llmq::CFinalCommitment qc;
                 uint256 minedBlockHash;
                 bool found = llmq::quorumBlockProcessor->GetMinedCommitment(p.first, p2->GetBlockHash(), qc, minedBlockHash);
-                if (!found) return state.Invalid(TxValidationResult::TX_CONSENSUS, "commitment-not-found");
+                if (!found) return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "commitment-not-found");
                 v.emplace_back(::SerializeHash(qc));
                 hashCount++;
             }
@@ -201,13 +204,15 @@ bool CalcCbTxMerkleRootQuorums(const CBlock& block, const CBlockIndex* pindexPre
 
     // now add the commitments from the current block, which are not returned by GetMinedAndActiveCommitmentsUntilBlock
     // due to the use of pindexPrev (we don't have the tip index here)
-    for (size_t i = 1; i < block.vtx.size(); i++) {
+    const int vtxOffset = 1 + (block.nNonce == 0);
+    for (int i = vtxOffset; i < (int)block.vtx.size(); i++) {
+
         auto& tx = block.vtx[i];
 
         if (tx->nVersion == 3 && tx->nType == TRANSACTION_QUORUM_COMMITMENT) {
             llmq::CFinalCommitmentTxPayload qc;
             if (!GetTxPayload(*tx, qc)) {
-                return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-qc-payload-calc-cbtx-quorummerkleroot");
+                return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-qc-payload-calc-cbtx-quorummerkleroot");
             }
             if (qc.commitment.IsNull()) {
                 continue;
@@ -224,7 +229,7 @@ bool CalcCbTxMerkleRootQuorums(const CBlock& block, const CBlockIndex* pindexPre
             v.emplace_back(qcHash);
             hashCount++;
             if (v.size() > params.signingActiveQuorumCount) {
-                return state.Invalid(TxValidationResult::TX_CONSENSUS, "excess-quorums-calc-cbtx-quorummerkleroot");
+                return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "excess-quorums-calc-cbtx-quorummerkleroot");
             }
         }
     }
@@ -249,7 +254,7 @@ bool CalcCbTxMerkleRootQuorums(const CBlock& block, const CBlockIndex* pindexPre
     LogPrint(BCLog::BENCHMARK, "            - ComputeMerkleRoot: %.2fms [%.2fs]\n", 0.001 * (nTime5 - nTime4), nTimeMerkle * 0.000001);
 
     if (mutated) {
-        return state.Invalid(TxValidationResult::TX_CONSENSUS, "mutated-calc-cbtx-quorummerkleroot");
+        return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "mutated-calc-cbtx-quorummerkleroot");
     }
 
     return true;

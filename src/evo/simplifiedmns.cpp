@@ -46,7 +46,7 @@ void CSimplifiedMNListEntry::ToJson(UniValue& obj) const
     obj.setObject();
     obj.pushKV("proRegTxHash", proRegTxHash.ToString());
     obj.pushKV("confirmedHash", confirmedHash.ToString());
-    obj.pushKV("service", service.ToString(false));
+    obj.pushKV("service", service.ToString());
     obj.pushKV("pubKeyOperator", pubKeyOperator.Get().ToString());
     obj.pushKV("votingAddress", EncodeDestination(PKHash(keyIDVoting)));
     obj.pushKV("isValid", isValid);
@@ -142,7 +142,6 @@ void CSimplifiedMNListDiff::ToJson(UniValue& obj) const
     CDataStream ssCbTxMerkleTree(SER_NETWORK, PROTOCOL_VERSION);
     ssCbTxMerkleTree << cbTxMerkleTree;
     obj.pushKV("cbTxMerkleTree", HexStr(ssCbTxMerkleTree.begin(), ssCbTxMerkleTree.end()));
-
     obj.pushKV("cbTx", EncodeHexTx(*cbTx));
 
     UniValue deletedMNsArr(UniValue::VARR);

@@ -44,8 +44,6 @@
 
 #include <boost/thread.hpp>
 
-int64_t nLastCoinStakeSearchInterval = 0;
-
 int64_t UpdateTime(CBlockHeader* pblock, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev)
 {
     int64_t nOldTime = pblock->nTime;
@@ -181,12 +179,6 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     coinbaseTx.vout[0].scriptPubKey = scriptPubKeyIn;
     CAmount blockReward = GetBlockSubsidy(pindexPrev->nHeight, chainparams.GetConsensus());
 
-    //! add contents of mempool to blocktemplate
-    {
-        LOCK(mempool.cs);
-        addPackageTxs(nPackagesSelected, nDescendantsUpdated);
-    }
-
     // ppcoin: if coinstake available add coinstake tx
     static int64_t m_last_coin_stake_search_time = GetAdjustedTime();
 
@@ -253,7 +245,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
         cbTx.nHeight = nHeight;
 
-        TxValidationState state;
+        BlockValidationState state;
         if (!CalcCbTxMerkleRootMNList(*pblock, pindexPrev, cbTx.merkleRootMNList, state)) {
             throw std::runtime_error(strprintf("%s: CalcCbTxMerkleRootMNList failed: %s", __func__, state.ToString()));
         }

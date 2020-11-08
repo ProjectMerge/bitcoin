@@ -105,16 +105,11 @@ bool ProcessSpecialTxsInBlock(const CBlock& block, const CBlockIndex* pindex, Bl
     try {
         int64_t nTime1 = GetTimeMicros();
 
-        TxValidationState txstate;
-        for (int i = 0; i < (int)block.vtx.size(); i++) {
+        for (size_t i = 0; i < block.vtx.size(); i++) {
             const CTransaction& tx = *block.vtx[i];
+            TxValidationState txstate;
             if (!CheckSpecialTx(tx, pindex->pprev, txstate)) {
-                // pass the state returned by the function above
-                return false;
-            }
-            if (!ProcessSpecialTx(tx, pindex, txstate)) {
-                // pass the state returned by the function above
-                return false;
+                return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, txstate.GetRejectReason());
             }
         }
 
@@ -129,7 +124,7 @@ bool ProcessSpecialTxsInBlock(const CBlock& block, const CBlockIndex* pindex, Bl
         int64_t nTime3 = GetTimeMicros(); nTimeQuorum += nTime3 - nTime2;
         LogPrint(BCLog::BENCHMARK, "        - quorumBlockProcessor: %.2fms [%.2fs]\n", 0.001 * (nTime3 - nTime2), nTimeQuorum * 0.000001);
 
-        if (!deterministicMNManager->ProcessBlock(block, pindex, txstate, fJustCheck)) {
+        if (!deterministicMNManager->ProcessBlock(block, pindex, state, fJustCheck)) {
             // pass the state returned by the function above
             return false;
         }
@@ -137,7 +132,7 @@ bool ProcessSpecialTxsInBlock(const CBlock& block, const CBlockIndex* pindex, Bl
         int64_t nTime4 = GetTimeMicros(); nTimeDMN += nTime4 - nTime3;
         LogPrint(BCLog::BENCHMARK, "        - deterministicMNManager: %.2fms [%.2fs]\n", 0.001 * (nTime4 - nTime3), nTimeDMN * 0.000001);
 
-        if (fCheckCbTxMerleRoots && !CheckCbTxMerkleRoots(block, pindex, txstate)) {
+        if (fCheckCbTxMerleRoots && !CheckCbTxMerkleRoots(block, pindex, state)) {
             // pass the state returned by the function above
             return false;
         }

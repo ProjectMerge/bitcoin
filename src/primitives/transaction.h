@@ -204,6 +204,8 @@ public:
     std::string ToString() const;
 };
 
+std::string GetTypeName(int nType);
+
 struct CMutableTransaction;
 
 /**
@@ -263,6 +265,8 @@ inline void UnserializeTransaction(TxType& tx, Stream& s) {
         throw std::ios_base::failure("Unknown transaction optional data");
     }
     s >> tx.nLockTime;
+    if (tx.nVersion == 3 && tx.nType != TRANSACTION_NORMAL)
+        s >> tx.vExtraPayload;
 }
 
 template<typename Stream, typename TxType>
@@ -293,6 +297,8 @@ inline void SerializeTransaction(const TxType& tx, Stream& s) {
         }
     }
     s << tx.nLockTime;
+    if (tx.nVersion == 3 && tx.nType != TRANSACTION_NORMAL)
+        s << tx.vExtraPayload;
 }
 
 
@@ -303,7 +309,7 @@ class CTransaction
 {
 public:
     // Default transaction version.
-    static const int32_t CURRENT_VERSION=1;
+    static const int32_t CURRENT_VERSION=2;
 
     // Changing the default transaction version requires a two step process: first
     // adapting relay policy by bumping MAX_STANDARD_VERSION, and then later date
@@ -341,13 +347,7 @@ public:
 
     template <typename Stream>
     inline void Serialize(Stream& s) const {
-        int32_t n32bitVersion = this->nVersion | (this->nType << 16);
-        s << n32bitVersion;
-        s << vin;
-        s << vout;
-        s << nLockTime;
-        if (this->nVersion == 3 && this->nType != TRANSACTION_NORMAL)
-            s << vExtraPayload;
+        SerializeTransaction(*this, s);
     }
 
     /** This deserializing constructor is provided instead of an Unserialize method.
@@ -420,22 +420,14 @@ struct CMutableTransaction
     CMutableTransaction();
     explicit CMutableTransaction(const CTransaction& tx);
 
-    ADD_SERIALIZE_METHODS;
+    template <typename Stream>
+    inline void Serialize(Stream& s) const {
+        SerializeTransaction(*this, s);
+    }
 
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action) {
-        int32_t n32bitVersion = this->nVersion | (this->nType << 16);
-        READWRITE(n32bitVersion);
-        if (ser_action.ForRead()) {
-            this->nVersion = (int16_t) (n32bitVersion & 0xffff);
-            this->nType = (int16_t) ((n32bitVersion >> 16) & 0xffff);
-        }
-        READWRITE(vin);
-        READWRITE(vout);
-        READWRITE(nLockTime);
-        if (this->nVersion == 3 && this->nType != TRANSACTION_NORMAL) {
-            READWRITE(vExtraPayload);
-        }
+    template <typename Stream>
+    inline void Unserialize(Stream& s) {
+        UnserializeTransaction(*this, s);
     }
 
     template <typename Stream>

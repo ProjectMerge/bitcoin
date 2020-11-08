@@ -71,25 +71,22 @@ public:
         s >> *this;
     }
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
+    SERIALIZE_METHODS(CDeterministicMNState, obj)
     {
-        READWRITE(nRegisteredHeight);
-        READWRITE(nLastPaidHeight);
-        READWRITE(nPoSePenalty);
-        READWRITE(nPoSeRevivedHeight);
-        READWRITE(nPoSeBanHeight);
-        READWRITE(nRevocationReason);
-        READWRITE(confirmedHash);
-        READWRITE(confirmedHashWithProRegTxHash);
-        READWRITE(keyIDOwner);
-        READWRITE(pubKeyOperator);
-        READWRITE(keyIDVoting);
-        READWRITE(addr);
-        READWRITE(scriptPayout);
-        READWRITE(scriptOperatorPayout);
+        READWRITE(obj.nRegisteredHeight);
+        READWRITE(obj.nLastPaidHeight);
+        READWRITE(obj.nPoSePenalty);
+        READWRITE(obj.nPoSeRevivedHeight);
+        READWRITE(obj.nPoSeBanHeight);
+        READWRITE(obj.nRevocationReason);
+        READWRITE(obj.confirmedHash);
+        READWRITE(obj.confirmedHashWithProRegTxHash);
+        READWRITE(obj.keyIDOwner);
+        READWRITE(obj.pubKeyOperator);
+        READWRITE(obj.keyIDVoting);
+        READWRITE(obj.addr);
+        READWRITE(obj.scriptPayout);
+        READWRITE(obj.scriptOperatorPayout);
     }
 
     void ResetOperatorFields()
@@ -185,13 +182,10 @@ public:
 #undef DMN_STATE_DIFF_LINE
     }
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
+    SERIALIZE_METHODS(CDeterministicMNStateDiff, obj)
     {
-        READWRITE(VARINT(fields));
-#define DMN_STATE_DIFF_LINE(f) if (fields & Field_##f) READWRITE(state.f);
+        READWRITE(VARINT(obj.fields));
+#define DMN_STATE_DIFF_LINE(f) if (obj.fields & Field_##f) READWRITE(obj.state.f);
         DMN_STATE_DIFF_ALL_FIELDS
 #undef DMN_STATE_DIFF_LINE
     }
@@ -216,12 +210,6 @@ public:
         // only non-initial values
         assert(_internalId != std::numeric_limits<uint64_t>::max());
     }
-    // TODO: can be removed in a future version
-    CDeterministicMN(const CDeterministicMN& mn, uint64_t _internalId) : CDeterministicMN(mn) {
-        // only non-initial values
-        assert(_internalId != std::numeric_limits<uint64_t>::max());
-        internalId = _internalId;
-    }
 
     template <typename Stream>
     CDeterministicMN(deserialize_type, Stream& s)
@@ -235,28 +223,13 @@ public:
     CDeterministicMNStateCPtr pdmnState;
 
 public:
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, bool oldFormat)
+    SERIALIZE_METHODS(CDeterministicMN, obj)
     {
-        READWRITE(proTxHash);
-        if (!oldFormat) {
-            READWRITE(VARINT(internalId));
-        }
-        READWRITE(collateralOutpoint);
-        READWRITE(nOperatorReward);
-        READWRITE(pdmnState);
-    }
-
-    template<typename Stream>
-    void Serialize(Stream& s) const
-    {
-        NCONST_PTR(this)->SerializationOp(s, CSerActionSerialize(), false);
-    }
-
-    template<typename Stream>
-    void Unserialize(Stream& s, bool oldFormat = false)
-    {
-        SerializationOp(s, CSerActionUnserialize(), oldFormat);
+        READWRITE(obj.proTxHash);
+        READWRITE(obj.internalId);
+        READWRITE(obj.collateralOutpoint);
+        READWRITE(obj.nOperatorReward);
+        READWRITE(obj.pdmnState);
     }
 
     uint64_t GetInternalId() const;
@@ -330,18 +303,12 @@ public:
     {
     }
 
-    template <typename Stream, typename Operation>
-    inline void SerializationOpBase(Stream& s, Operation ser_action)
-    {
-        READWRITE(blockHash);
-        READWRITE(nHeight);
-        READWRITE(nTotalRegisteredCount);
-    }
-
     template<typename Stream>
     void Serialize(Stream& s) const
     {
-        NCONST_PTR(this)->SerializationOpBase(s, CSerActionSerialize());
+        s << blockHash;
+        s << nHeight;
+        s << nTotalRegisteredCount;
         // Serialize the map as a vector
         WriteCompactSize(s, mnMap.size());
         for (const auto& p : mnMap) {
@@ -354,13 +321,21 @@ public:
         mnMap = MnMap();
         mnUniquePropertyMap = MnUniquePropertyMap();
         mnInternalIdMap = MnInternalIdMap();
-
-        SerializationOpBase(s, CSerActionUnserialize());
-
+        s >> blockHash;
+        s >> nHeight;
+        s >> nTotalRegisteredCount;
         size_t cnt = ReadCompactSize(s);
         for (size_t i = 0; i < cnt; i++) {
             AddMN(std::make_shared<CDeterministicMN>(deserialize, s), false);
         }
+    }
+    void clear() {
+        mnMap = MnMap();
+        mnUniquePropertyMap = MnUniquePropertyMap();
+        mnInternalIdMap = MnInternalIdMap();
+        blockHash.SetNull();
+        nHeight = -1;
+        nTotalRegisteredCount = 0;
     }
 
 public:
@@ -579,12 +554,12 @@ public:
         s << addedMNs;
         WriteCompactSize(s, updatedMNs.size());
         for (const auto& p : updatedMNs) {
-            WriteVarInt<Stream, VarIntMode::DEFAULT, uint32_t>(s, p.first);
+            WriteVarInt<Stream, VarIntMode::DEFAULT, uint64_t>(s, p.first);
             s << p.second;
         }
         WriteCompactSize(s, removedMns.size());
         for (const auto& p : removedMns) {
-            WriteVarInt<Stream, VarIntMode::DEFAULT, uint32_t>(s, p);
+            WriteVarInt<Stream, VarIntMode::DEFAULT, uint64_t>(s, p);
         }
     }
 
@@ -618,40 +593,6 @@ public:
     }
 };
 
-// TODO can be removed in a future version
-class CDeterministicMNListDiff_OldFormat
-{
-public:
-    uint256 prevBlockHash;
-    uint256 blockHash;
-    int nHeight{-1};
-    std::map<uint256, CDeterministicMNCPtr> addedMNs;
-    std::map<uint256, CDeterministicMNStateCPtr> updatedMNs;
-    std::set<uint256> removedMns;
-
-public:
-    template<typename Stream>
-    void Unserialize(Stream& s) {
-        addedMNs.clear();
-        s >> prevBlockHash;
-        s >> blockHash;
-        s >> nHeight;
-        size_t cnt = ReadCompactSize(s);
-        for (size_t i = 0; i < cnt; i++) {
-            uint256 proTxHash;
-            // NOTE: This is a hack and "0" is just a dummy id. The actual internalId is assigned to a copy
-            // of this dmn via corresponding ctor when we convert the diff format to a new one in UpgradeDiff
-            // thus the logic that we must set internalId before dmn is used in any meaningful way is preserved.
-            auto dmn = std::make_shared<CDeterministicMN>(0);
-            s >> proTxHash;
-            dmn->Unserialize(s, true);
-            addedMNs.emplace(proTxHash, dmn);
-        }
-        s >> updatedMNs;
-        s >> removedMns;
-    }
-};
-
 class CDeterministicMNManager
 {
     static const int DISK_SNAPSHOT_PERIOD = 576; // once per day
@@ -671,13 +612,13 @@ private:
 public:
     explicit CDeterministicMNManager(CEvoDB& _evoDb);
 
-    bool ProcessBlock(const CBlock& block, const CBlockIndex* pindex, TxValidationState& state, bool fJustCheck);
+    bool ProcessBlock(const CBlock& block, const CBlockIndex* pindex, BlockValidationState& state, bool fJustCheck);
     bool UndoBlock(const CBlock& block, const CBlockIndex* pindex);
 
     void UpdatedBlockTip(const CBlockIndex* pindex);
 
     // the returned list will not contain the correct block hash (we can't know it yet as the coinbase TX is not updated yet)
-    bool BuildNewListFromBlock(const CBlock& block, const CBlockIndex* pindexPrev, TxValidationState& state, CDeterministicMNList& mnListRet, bool debugLogs);
+    bool BuildNewListFromBlock(const CBlock& block, const CBlockIndex* pindexPrev, BlockValidationState& state, CDeterministicMNList& mnListRet, bool debugLogs);
     void HandleQuorumCommitment(llmq::CFinalCommitment& qc, const CBlockIndex* pindexQuorum, CDeterministicMNList& mnList, bool debugLogs);
     void DecreasePoSePenalties(CDeterministicMNList& mnList);
 
@@ -685,14 +626,9 @@ public:
     CDeterministicMNList GetListAtChainTip();
 
     // Test if given TX is a ProRegTx which also contains the collateral at index n
-    static bool IsProTxWithCollateral(const CTransactionRef& tx, uint32_t n);
+    bool IsProTxWithCollateral(const CTransactionRef& tx, uint32_t n);
 
     bool IsDIP3Enforced(int nHeight = -1);
-
-public:
-    // TODO these can all be removed in a future version
-    void UpgradeDiff(CDBBatch& batch, const CBlockIndex* pindexNext, const CDeterministicMNList& curMNList, CDeterministicMNList& newMNList);
-    bool UpgradeDBIfNeeded();
 
 private:
     void CleanupCache(int nHeight);

@@ -234,8 +234,9 @@ UniValue masternode_outputs(const JSONRPCRequest& request)
     auto locked_chain = pwallet->chain().lock();
     CCoinControl coin_control;
     std::vector<COutput> vPossibleCoins;
+    CAmount collateralAmount = Params().GetConsensus().nCollateralAmount;
     coin_control.nCoinType = CoinType::ONLY_MASTERNODE_COLLATERAL;
-    pwallet->AvailableCoins(*locked_chain, vPossibleCoins, true, &coin_control);
+    pwallet->AvailableCoins(*locked_chain, vPossibleCoins, true, &coin_control, collateralAmount, collateralAmount);
 
     UniValue obj(UniValue::VOBJ);
     for (const auto& out : vPossibleCoins) {

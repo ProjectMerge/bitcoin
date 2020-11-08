@@ -51,17 +51,14 @@ public:
     }
 
 public:
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
+    SERIALIZE_METHODS(CSimplifiedMNListEntry, obj)
     {
-        READWRITE(proRegTxHash);
-        READWRITE(confirmedHash);
-        READWRITE(service);
-        READWRITE(pubKeyOperator);
-        READWRITE(keyIDVoting);
-        READWRITE(isValid);
+        READWRITE(obj.proRegTxHash);
+        READWRITE(obj.confirmedHash);
+        READWRITE(obj.service);
+        READWRITE(obj.pubKeyOperator);
+        READWRITE(obj.keyIDVoting);
+        READWRITE(obj.isValid);
     }
 
 public:
@@ -93,13 +90,10 @@ public:
     uint256 blockHash;
 
 public:
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
+    SERIALIZE_METHODS(CGetSimplifiedMNListDiff, obj)
     {
-        READWRITE(baseBlockHash);
-        READWRITE(blockHash);
+        READWRITE(obj.baseBlockHash);
+        READWRITE(obj.blockHash);
     }
 };
 
@@ -118,21 +112,17 @@ public:
     std::vector<llmq::CFinalCommitment> newQuorums;
 
 public:
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
+    SERIALIZE_METHODS(CSimplifiedMNListDiff, obj)
     {
-        READWRITE(baseBlockHash);
-        READWRITE(blockHash);
-        READWRITE(cbTxMerkleTree);
-        READWRITE(cbTx);
-        READWRITE(deletedMNs);
-        READWRITE(mnList);
-
+        READWRITE(obj.baseBlockHash);
+        READWRITE(obj.blockHash);
+        READWRITE(obj.cbTxMerkleTree);
+        READWRITE(obj.cbTx);
+        READWRITE(obj.deletedMNs);
+        READWRITE(obj.mnList);
         if (s.GetVersion() >= LLMQS_PROTO_VERSION) {
-            READWRITE(deletedQuorums);
-            READWRITE(newQuorums);
+            READWRITE(obj.deletedQuorums);
+            READWRITE(obj.newQuorums);
         }
     }
 

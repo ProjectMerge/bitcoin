@@ -2443,6 +2443,13 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
     int64_t nTime3 = GetTimeMicros(); nTimeConnect += nTime3 - nTime2;
     LogPrint(BCLog::BENCHMARK, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs (%.2fms/blk)]\n", (unsigned)block.vtx.size(), MILLI * (nTime3 - nTime2), MILLI * (nTime3 - nTime2) / block.vtx.size(), nInputs <= 1 ? 0 : MILLI * (nTime3 - nTime2) / (nInputs-1), nTimeConnect * MICRO, nTimeConnect * MILLI / nBlocksTotal);
 
+    if (!isExceptionBlock(pindex->nHeight, chainparams.GetConsensus())) {
+        if (!control.Wait()) {
+            LogPrintf("ERROR: %s: CheckQueue failed\n", __func__);
+            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "block-validation-failed");
+        }
+    }
+
     // MERGE : MODIFIED TO CHECK MASTERNODE PAYMENTS AND SUPERBLOCKS //////////////////////////////////
 
     pindex->nMint = nValueOut - nValueIn + nFees;
@@ -2457,18 +2464,18 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
     }
 
     bool isPoS = block.nNonce == 0;
-    if (!IsBlockPayeeValid(*block.vtx[isPoS], pindex->nHeight, blockReward)) {
-        LogPrintf("ERROR: ConnectBlock(MERGE): couldn't find masternode or superblock payments");
-        return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cb-payee");
+    if (pindex->nHeight > chainparams.GetConsensus().DIP0003Height) {
+        if (!IsBlockPayeeValid(*block.vtx[isPoS], pindex->nHeight, blockReward)) {
+            LogPrintf("ERROR: ConnectBlock(MERGE): couldn't find masternode or superblock payments");
+            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cb-payee");
+        }
     }
 
     ////////////////////////////////// MERGE : MODIFIED TO CHECK MASTERNODE PAYMENTS AND SUPERBLOCKS //
 
-    if (!isExceptionBlock(pindex->nHeight, chainparams.GetConsensus())) {
-        if (!control.Wait()) {
-            LogPrintf("ERROR: %s: CheckQueue failed\n", __func__);
-            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "block-validation-failed");
-        }
+    if (!ProcessSpecialTxsInBlock(block, pindex, state, fJustCheck, fScriptChecks)) {
+        return error("ConnectBlock(MERGE): ProcessSpecialTxsInBlock for block %s failed with %s",
+                     pindex->GetBlockHash().ToString(), state.ToString());
     }
 
     int64_t nTime4 = GetTimeMicros(); nTimeVerify += nTime4 - nTime2;
@@ -2548,9 +2555,8 @@ bool CChainState::FlushStateToDisk(
     std::set<int> setFilesToPrune;
     bool full_flush_completed = false;
 
-    int64_t nMempoolUsage = mempool.DynamicMemoryUsage();
     const size_t coins_count = CoinsTip().GetCacheSize();
-    const size_t coins_mem_usage = CoinsTip().DynamicMemoryUsage();
+    const size_t coins_mem_usage = CoinsTip().DynamicMemoryUsage() + evoDb->GetMemoryUsage();
 
     try {
     {
@@ -2585,10 +2591,6 @@ bool CChainState::FlushStateToDisk(
         if (nLastFlush == 0) {
             nLastFlush = nNow;
         }
-        int64_t nMempoolSizeMax = gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000;
-        int64_t cacheSize = CoinsTip().DynamicMemoryUsage();
-        cacheSize += evoDb->GetMemoryUsage();
-        int64_t nTotalSpace = nCoinCacheUsage + std::max<int64_t>(nMempoolSizeMax - nMempoolUsage, 0);
         // The cache is large and we're within 10% and 10 MiB of the limit, but we have time now (not in the middle of a block processing).
         bool fCacheLarge = mode == FlushStateMode::PERIODIC && cache_state >= CoinsCacheSizeState::LARGE;
         // The cache is over the limit, we have to write now.
@@ -4736,6 +4738,13 @@ bool CChainState::RollforwardBlock(const CBlockIndex* pindex, CCoinsViewCache& i
         // Pass check = true as every addition may be an overwrite.
         AddCoins(inputs, *tx, pindex->nHeight, true);
     }
+
+    BlockValidationState state;
+    if (!ProcessSpecialTxsInBlock(block, pindex, state, false, false)) {
+        return error("RollforwardBlock(MERGE): ProcessSpecialTxsInBlock for block %s failed with %s",
+                     pindex->GetBlockHash().ToString(), state.ToString());
+    }
+
     return true;
 }
 

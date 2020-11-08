@@ -37,24 +37,21 @@ public:
     std::vector<unsigned char> vchSig;
 
 public:
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
+    SERIALIZE_METHODS(CProRegTx, obj)
     {
-        READWRITE(nVersion);
-        READWRITE(nType);
-        READWRITE(nMode);
-        READWRITE(collateralOutpoint);
-        READWRITE(addr);
-        READWRITE(PKHash(keyIDOwner));
-        READWRITE(pubKeyOperator);
-        READWRITE(PKHash(keyIDVoting));
-        READWRITE(nOperatorReward);
-        READWRITE(scriptPayout);
-        READWRITE(inputsHash);
+        READWRITE(obj.nVersion);
+        READWRITE(obj.nType);
+        READWRITE(obj.nMode);
+        READWRITE(obj.collateralOutpoint);
+        READWRITE(obj.addr);
+        READWRITE(obj.keyIDOwner);
+        READWRITE(obj.pubKeyOperator);
+        READWRITE(obj.keyIDVoting);
+        READWRITE(obj.nOperatorReward);
+        READWRITE(obj.scriptPayout);
+        READWRITE(obj.inputsHash);
         if (!(s.GetType() & SER_GETHASH)) {
-            READWRITE(vchSig);
+            READWRITE(obj.vchSig);
         }
     }
 
@@ -71,7 +68,7 @@ public:
         obj.pushKV("version", nVersion);
         obj.pushKV("collateralHash", collateralOutpoint.hash.ToString());
         obj.pushKV("collateralIndex", (int)collateralOutpoint.n);
-        obj.pushKV("service", addr.ToString(false));
+        obj.pushKV("service", addr.ToString());
         obj.pushKV("ownerAddress", EncodeDestination(PKHash(keyIDOwner)));
         obj.pushKV("votingAddress", EncodeDestination(PKHash(keyIDVoting)));
 
@@ -100,18 +97,15 @@ public:
     CBLSSignature sig;
 
 public:
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
+    SERIALIZE_METHODS(CProUpServTx, obj)
     {
-        READWRITE(nVersion);
-        READWRITE(proTxHash);
-        READWRITE(addr);
-        READWRITE(scriptOperatorPayout);
-        READWRITE(inputsHash);
+        READWRITE(obj.nVersion);
+        READWRITE(obj.proTxHash);
+        READWRITE(obj.addr);
+        READWRITE(obj.scriptOperatorPayout);
+        READWRITE(obj.inputsHash);
         if (!(s.GetType() & SER_GETHASH)) {
-            READWRITE(sig);
+            READWRITE(obj.sig);
         }
     }
 
@@ -124,7 +118,7 @@ public:
         obj.setObject();
         obj.pushKV("version", nVersion);
         obj.pushKV("proTxHash", proTxHash.ToString());
-        obj.pushKV("service", addr.ToString(false));
+        obj.pushKV("service", addr.ToString());
         CTxDestination dest;
         if (ExtractDestination(scriptOperatorPayout, dest)) {
             obj.pushKV("operatorPayoutAddress", EncodeDestination(dest));
@@ -149,20 +143,17 @@ public:
     std::vector<unsigned char> vchSig;
 
 public:
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
+    SERIALIZE_METHODS(CProUpRegTx, obj)
     {
-        READWRITE(nVersion);
-        READWRITE(proTxHash);
-        READWRITE(nMode);
-        READWRITE(pubKeyOperator);
-        READWRITE(PKHash(keyIDVoting));
-        READWRITE(scriptPayout);
-        READWRITE(inputsHash);
+        READWRITE(obj.nVersion);
+        READWRITE(obj.proTxHash);
+        READWRITE(obj.nMode);
+        READWRITE(obj.pubKeyOperator);
+        READWRITE(obj.keyIDVoting);
+        READWRITE(obj.scriptPayout);
+        READWRITE(obj.inputsHash);
         if (!(s.GetType() & SER_GETHASH)) {
-            READWRITE(vchSig);
+            READWRITE(obj.vchSig);
         }
     }
 
@@ -207,17 +198,14 @@ public:
     CBLSSignature sig;
 
 public:
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
+    SERIALIZE_METHODS(CProUpRevTx, obj)
     {
-        READWRITE(nVersion);
-        READWRITE(proTxHash);
-        READWRITE(nReason);
-        READWRITE(inputsHash);
+        READWRITE(obj.nVersion);
+        READWRITE(obj.proTxHash);
+        READWRITE(obj.nReason);
+        READWRITE(obj.inputsHash);
         if (!(s.GetType() & SER_GETHASH)) {
-            READWRITE(sig);
+            READWRITE(obj.sig);
         }
     }
 

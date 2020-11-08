@@ -70,13 +70,36 @@ uint256 CMutableTransaction::GetHash() const
     return SerializeHash(*this, SER_GETHASH, SERIALIZE_TRANSACTION_NO_WITNESS);
 }
 
+std::string GetTypeName(int nType)
+{
+    switch (nType) {
+        case (TRANSACTION_NORMAL):
+           return "TRANSACTION_NORMAL";
+        case (TRANSACTION_PROVIDER_REGISTER):
+           return "TRANSACTION_PROVIDER_REGISTER";
+        case (TRANSACTION_PROVIDER_UPDATE_SERVICE):
+           return "TRANSACTION_PROVIDER_UPDATE_SERVICE";
+        case (TRANSACTION_PROVIDER_UPDATE_REGISTRAR):
+           return "TRANSACTION_PROVIDER_UPDATE_REGISTRAR";
+        case (TRANSACTION_PROVIDER_UPDATE_REVOKE):
+           return "TRANSACTION_PROVIDER_UPDATE_REVOKE";
+        case (TRANSACTION_COINBASE):
+           return "TRANSACTION_COINBASE";
+        case (TRANSACTION_QUORUM_COMMITMENT):
+           return "TRANSACTION_QUORUM_COMMITMENT";
+        case (TRANSACTION_COINSTAKE):
+           return "TRANSACTION_COINSTAKE";
+    }
+    return "UNKNOWN";
+};
+
 std::string CMutableTransaction::ToString() const
 {
     std::string str;
-    str += strprintf("CMutableTransaction(hash=%s, ver=%d, type=%d, vin.size=%u, vout.size=%u, nLockTime=%u, vExtraPayload.size=%d)\n",
+    str += strprintf("CMutableTransaction(hash=%s, ver=%d, type=%s, vin.size=%u, vout.size=%u, nLockTime=%u, vExtraPayload.size=%d)\n",
         GetHash().ToString().substr(0,10),
         nVersion,
-        nType,
+        GetTypeName(nType),
         vin.size(),
         vout.size(),
         nLockTime);
@@ -125,10 +148,10 @@ unsigned int CTransaction::GetTotalSize() const
 std::string CTransaction::ToString() const
 {
     std::string str;
-    str += strprintf("CTransaction(hash=%s, ver=%d, type=%d, vin.size=%u, vout.size=%u, nLockTime=%u, vExtraPayload.size=%d)\n",
+    str += strprintf("(hash=%s, ver=%d, type=%s, vin.size=%u, vout.size=%u, nLockTime=%u, vExtraPayload.size=%d)\n",
         GetHash().ToString().substr(0,10),
         nVersion,
-        nType,
+        GetTypeName(nType),
         vin.size(),
         vout.size(),
         nLockTime,

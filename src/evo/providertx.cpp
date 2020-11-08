@@ -14,7 +14,10 @@
 #include <hash.h>
 #include <masternode/messagesigner.h>
 #include <script/standard.h>
+#include <script/signingprovider.h>
 #include <validation.h>
+#include <wallet/rpcwallet.h>
+#include <wallet/wallet.h>
 
 template <typename ProTx>
 static bool CheckService(const uint256& proTxHash, const ProTx& proTx, TxValidationState& state)
@@ -335,7 +338,7 @@ bool CheckProUpRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, TxVa
             // pass the state returned by the function above
             return false;
         }
-        if (!CheckHashSig(ptx, CKeyID(PKHash(dmn->pdmnState->keyIDOwner)), state)) {
+        if (!CheckHashSig(ptx, dmn->pdmnState->keyIDOwner, state)) {
             // pass the state returned by the function above
             return false;
         }
