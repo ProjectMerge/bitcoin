@@ -147,7 +147,7 @@ void CDKGSessionHandler::StartThread()
         throw std::runtime_error("Tried to start an already started CDKGSessionHandler thread.");
     }
 
-    std::string threadName = strprintf("merge-q-phase-%d", (uint8_t)params.type);
+    std::string threadName = strprintf("merge-q-phase-%d", params.type);
     phaseHandlerThread = std::thread(&TraceThread<std::function<void()> >, threadName, std::function<void()>(std::bind(&CDKGSessionHandler::PhaseHandlerThread, this)));
 }
 
@@ -225,8 +225,8 @@ void CDKGSessionHandler::WaitForNextPhase(QuorumPhase curPhase,
         quorumDKGDebugManager->ResetLocalSessionStatus(params.type);
     } else {
         quorumDKGDebugManager->UpdateLocalSessionStatus(params.type, [&](CDKGDebugSessionStatus& status) {
-            bool changed = status.phase != (uint8_t) nextPhase;
-            status.phase = (uint8_t) nextPhase;
+            bool changed = status.phase !=  nextPhase;
+            status.phase =  nextPhase;
             return changed;
         });
     }
@@ -533,8 +533,8 @@ void CDKGSessionHandler::HandleDKGRound()
     }
 
     quorumDKGDebugManager->UpdateLocalSessionStatus(params.type, [&](CDKGDebugSessionStatus& status) {
-        bool changed = status.phase != (uint8_t) QuorumPhase_Initialized;
-        status.phase = (uint8_t) QuorumPhase_Initialized;
+        bool changed = status.phase !=  QuorumPhase_Initialized;
+        status.phase =  QuorumPhase_Initialized;
         return changed;
     });
 

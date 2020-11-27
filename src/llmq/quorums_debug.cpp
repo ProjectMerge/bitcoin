@@ -19,7 +19,7 @@ UniValue CDKGDebugSessionStatus::ToJson(int detailLevel) const
 {
     UniValue ret(UniValue::VOBJ);
 
-    if (!Params().GetConsensus().llmqs.count((Consensus::LLMQType)llmqType) || quorumHash.IsNull()) {
+    if (!Params().GetConsensus().llmqs.count(llmqType) || quorumHash.IsNull()) {
         return ret;
     }
 
@@ -34,7 +34,7 @@ UniValue CDKGDebugSessionStatus::ToJson(int detailLevel) const
             }
         }
         if (pindex != nullptr) {
-            dmnMembers = CLLMQUtils::GetAllQuorumMembers((Consensus::LLMQType) llmqType, pindex);
+            dmnMembers = CLLMQUtils::GetAllQuorumMembers( llmqType, pindex);
         }
     }
 
@@ -126,10 +126,10 @@ UniValue CDKGDebugStatus::ToJson(int detailLevel) const
 
     UniValue sessionsJson(UniValue::VOBJ);
     for (const auto& p : sessions) {
-        if (!Params().GetConsensus().llmqs.count((Consensus::LLMQType)p.first)) {
+        if (!Params().GetConsensus().llmqs.count(p.first)) {
             continue;
         }
-        const auto& params = Params().GetConsensus().llmqs.at((Consensus::LLMQType)p.first);
+        const auto& params = Params().GetConsensus().llmqs.at(p.first);
         sessionsJson.pushKV(params.name, p.second.ToJson(detailLevel));
     }
 
@@ -144,7 +144,7 @@ void CDKGDebugManager::GetLocalDebugStatus(llmq::CDKGDebugStatus& ret)
     ret = localStatus;
 }
 
-void CDKGDebugManager::ResetLocalSessionStatus(Consensus::LLMQType llmqType)
+void CDKGDebugManager::ResetLocalSessionStatus(uint8_t llmqType)
 {
     LOCK(cs);
 
@@ -157,7 +157,7 @@ void CDKGDebugManager::ResetLocalSessionStatus(Consensus::LLMQType llmqType)
     localStatus.nTime = GetAdjustedTime();
 }
 
-void CDKGDebugManager::InitLocalSessionStatus(Consensus::LLMQType llmqType, const uint256& quorumHash, int quorumHeight)
+void CDKGDebugManager::InitLocalSessionStatus(uint8_t llmqType, const uint256& quorumHash, int quorumHeight)
 {
     LOCK(cs);
 
@@ -177,7 +177,7 @@ void CDKGDebugManager::InitLocalSessionStatus(Consensus::LLMQType llmqType, cons
     session.members.resize((size_t)params.size);
 }
 
-void CDKGDebugManager::UpdateLocalSessionStatus(Consensus::LLMQType llmqType, std::function<bool(CDKGDebugSessionStatus& status)>&& func)
+void CDKGDebugManager::UpdateLocalSessionStatus(uint8_t llmqType, std::function<bool(CDKGDebugSessionStatus& status)>&& func)
 {
     LOCK(cs);
 
@@ -191,7 +191,7 @@ void CDKGDebugManager::UpdateLocalSessionStatus(Consensus::LLMQType llmqType, st
     }
 }
 
-void CDKGDebugManager::UpdateLocalMemberStatus(Consensus::LLMQType llmqType, size_t memberIdx, std::function<bool(CDKGDebugMemberStatus& status)>&& func)
+void CDKGDebugManager::UpdateLocalMemberStatus(uint8_t llmqType, size_t memberIdx, std::function<bool(CDKGDebugMemberStatus& status)>&& func)
 {
     LOCK(cs);
 

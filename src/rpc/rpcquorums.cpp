@@ -124,7 +124,7 @@ UniValue quorum_info(const JSONRPCRequest& request)
 
     LOCK(cs_main);
 
-    Consensus::LLMQType llmqType = (Consensus::LLMQType)request.params[1].get_int();
+    uint8_t llmqType = (uint8_t)request.params[1].get_int();
     if (!Params().GetConsensus().llmqs.count(llmqType)) {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "invalid LLMQ type");
     }
@@ -356,7 +356,7 @@ UniValue quorum_sigs_cmd(const JSONRPCRequest& request)
         }
     }
 
-    Consensus::LLMQType llmqType = (Consensus::LLMQType)request.params[1].get_int();
+    uint8_t llmqType = (uint8_t)request.params[1].get_int();
     if (!Params().GetConsensus().llmqs.count(llmqType)) {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "invalid LLMQ type");
     }
@@ -412,7 +412,7 @@ UniValue quorum_selectquorum(const JSONRPCRequest& request)
         quorum_selectquorum_help();
     }
 
-    Consensus::LLMQType llmqType = (Consensus::LLMQType)request.params[1].get_int();
+    uint8_t llmqType = (uint8_t)request.params[1].get_int();
     if (!Params().GetConsensus().llmqs.count(llmqType)) {
         throw JSONRPCError(RPC_INVALID_PARAMETER, "invalid LLMQ type");
     }

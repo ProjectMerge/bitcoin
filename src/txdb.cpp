@@ -335,9 +335,9 @@ public:
         unsigned int nCode = 0;
         // version
         unsigned int nVersionDummy;
-        ::Unserialize(s, REF(VARINT(nVersionDummy)));
+        ::Unserialize(s, VARINT(nVersionDummy));
         // header code
-        ::Unserialize(s, REF(VARINT(nCode)));
+        ::Unserialize(s, VARINT(nCode));
         fCoinBase = nCode & 1;
         std::vector<bool> vAvail(2, false);
         vAvail[0] = (nCode & 2) != 0;
@@ -358,10 +358,10 @@ public:
         vout.assign(vAvail.size(), CTxOut());
         for (unsigned int i = 0; i < vAvail.size(); i++) {
             if (vAvail[i])
-                ::Unserialize(s, REF(CTxOutCompressor(vout[i])));
+                ::Unserialize(s, Using<TxOutCompression>(vout[i]));
         }
         // coinbase height
-        ::Unserialize(s, nHeight);
+        ::Unserialize(s, VARINT_MODE(nHeight, VarIntMode::NONNEGATIVE_SIGNED));
     }
 };
 

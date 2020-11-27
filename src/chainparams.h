@@ -98,7 +98,7 @@ public:
     const ChainTxData& TxData() const { return chainTxData; }
     void UpdateVersionBitsParameters(Consensus::DeploymentPos d, int64_t nStartTime, int64_t nTimeout, int64_t nWindowSize, int64_t nThreshold);
     void UpdateDIP3Parameters(int nActivationHeight, int nEnforcementHeight);
-    void UpdateLLMQChainLocks(Consensus::LLMQType llmqType);
+    void UpdateLLMQChainLocks(uint8_t llmqType);
     void UpdateLLMQTestParams(int size, int threshold);
     int PoolMinParticipants() const { return nPoolMinParticipants; }
     int PoolNewMinParticipants() const { return nPoolNewMinParticipants; }

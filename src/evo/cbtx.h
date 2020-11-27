@@ -25,7 +25,6 @@ public:
     uint256 merkleRootQuorums;
 
 public:
-public:
     SERIALIZE_METHODS(CCbTx, obj)
     {
         READWRITE(obj.nVersion);

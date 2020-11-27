@@ -86,7 +86,7 @@ void CChainParams::UpdateDIP3Parameters(int nActivationHeight, int nEnforcementH
     consensus.DIP0003EnforcementHeight = nEnforcementHeight;
 }
 
-void CChainParams::UpdateLLMQChainLocks(Consensus::LLMQType llmqType) {
+void CChainParams::UpdateLLMQChainLocks(uint8_t llmqType) {
     consensus.llmqTypeChainLocks = llmqType;
 }
 

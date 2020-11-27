@@ -28,7 +28,7 @@ public:
 
 public:
     uint16_t nVersion{CURRENT_VERSION};
-    Consensus::LLMQType llmqType{Consensus::LLMQ_NONE};
+    uint8_t llmqType{Consensus::LLMQ_NONE};
     uint256 quorumHash;
     std::vector<bool> signers;
     std::vector<bool> validMembers;
@@ -57,20 +57,17 @@ public:
     bool VerifySizes(const Consensus::LLMQParams& params) const;
 
 public:
-    ADD_SERIALIZE_METHODS
-
-    template<typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
+    SERIALIZE_METHODS(CFinalCommitment, obj)
     {
-        READWRITE(nVersion);
-        READWRITE(llmqType);
-        READWRITE(quorumHash);
-        READWRITE(DYNBITSET(signers));
-        READWRITE(DYNBITSET(validMembers));
-        READWRITE(quorumPublicKey);
-        READWRITE(quorumVvecHash);
-        READWRITE(quorumSig);
-        READWRITE(membersSig);
+        READWRITE(obj.nVersion);
+        READWRITE(obj.llmqType);
+        READWRITE(obj.quorumHash);
+        READWRITE(DYNBITSET(obj.signers));
+        READWRITE(DYNBITSET(obj.validMembers));
+        READWRITE(obj.quorumPublicKey);
+        READWRITE(obj.quorumVvecHash);
+        READWRITE(obj.quorumSig);
+        READWRITE(obj.membersSig);
     }
 
 public:
@@ -93,7 +90,7 @@ public:
     {
         obj.setObject();
         obj.pushKV("version", (int)nVersion);
-        obj.pushKV("llmqType", (int)llmqType);
+        obj.pushKV("llmqType", llmqType);
         obj.pushKV("quorumHash", quorumHash.ToString());
         obj.pushKV("signersCount", CountSigners());
         obj.pushKV("signers", CLLMQUtils::ToHexStr(signers));

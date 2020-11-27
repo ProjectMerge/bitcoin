@@ -915,16 +915,16 @@ template<typename Stream, typename T> void Unserialize(Stream& os, std::unique_p
 
 
 /**
- * If none of the specialized versions above matched and T is a class, default to calling member function.
+ * If none of the specialized versions above matched, default to calling member function.
  */
-template<typename Stream, typename T, typename std::enable_if<std::is_class<T>::value>::type* = nullptr>
+template<typename Stream, typename T>
 inline void Serialize(Stream& os, const T& a)
 {
     a.Serialize(os);
 }
 
-template<typename Stream, typename T, typename std::enable_if<std::is_class<T>::value>::type* = nullptr>
-inline void Unserialize(Stream& is, T& a)
+template<typename Stream, typename T>
+inline void Unserialize(Stream& is, T&& a)
 {
     a.Unserialize(is);
 }
@@ -1019,9 +1019,7 @@ void Serialize_impl(Stream& os, const prevector<N, T>& v, const unsigned char&)
 template<typename Stream, unsigned int N, typename T, typename V>
 void Serialize_impl(Stream& os, const prevector<N, T>& v, const V&)
 {
-    WriteCompactSize(os, v.size());
-    for (typename prevector<N, T>::const_iterator vi = v.begin(); vi != v.end(); ++vi)
-        ::Serialize(os, (*vi));
+    Serialize(os, Using<VectorFormatter<DefaultFormatter>>(v));
 }
 
 template<typename Stream, unsigned int N, typename T>
@@ -1116,19 +1114,7 @@ void Unserialize_impl(Stream& is, std::vector<T, A>& v, const unsigned char&)
 template<typename Stream, typename T, typename A, typename V>
 void Unserialize_impl(Stream& is, std::vector<T, A>& v, const V&)
 {
-    v.clear();
-    unsigned int nSize = ReadCompactSize(is);
-    unsigned int i = 0;
-    unsigned int nMid = 0;
-    while (nMid < nSize)
-    {
-        nMid += 5000000 / sizeof(T);
-        if (nMid > nSize)
-            nMid = nSize;
-        v.resize(nMid);
-        for (; i < nMid; i++)
-            Unserialize(is, v[i]);
-    }
+    Unserialize(is, Using<VectorFormatter<DefaultFormatter>>(v));
 }
 
 template<typename Stream, typename T, typename A>

@@ -350,7 +350,7 @@ uint256 CSporkMessage::GetHash() const
 uint256 CSporkMessage::GetSignatureHash() const
 {
     CHashWriter s(SER_GETHASH, 0);
-    s << nSporkID;
+    s << (int32_t)nSporkID;
     s << nValue;
     s << nTimeSigned;
     return s.GetHash();

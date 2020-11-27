@@ -42,7 +42,7 @@ struct BIP9Deployment {
     static constexpr int64_t NO_TIMEOUT = std::numeric_limits<int64_t>::max();
 };
 
-enum LLMQType : uint8_t
+enum LLMQType
 {
     LLMQ_NONE = 0xff,
 
@@ -62,7 +62,7 @@ enum LLMQType : uint8_t
 // Configures a LLMQ and its DKG
 // See https://github.com/dashpay/dips/blob/master/dip-0006.md for more details
 struct LLMQParams {
-    LLMQType type;
+    uint8_t type;
 
     // not consensus critical, only used in logging, RPC and UI
     std::string name;
@@ -194,15 +194,15 @@ struct Params {
     unsigned int ModifierInterval() const { return nModifierInterval; }
     unsigned int ModifierUpgradeBlock() const { return nModifierUpgradeBlock; }
 
-    std::map<LLMQType, LLMQParams> llmqs;
-    LLMQType llmqTypeChainLocks;
-    LLMQType llmqTypeInstantSend{LLMQ_NONE};
+    std::map<uint8_t, LLMQParams> llmqs;
+    uint8_t llmqTypeChainLocks;
+    uint8_t llmqTypeInstantSend{LLMQ_NONE};
 };
 } // namespace Consensus
 
 // This must be outside of all namespaces. We must also duplicate the forward declaration of is_serializable_enum to
 // avoid inclusion of serialize.h here.
 template<typename T> struct is_serializable_enum;
-template<> struct is_serializable_enum<Consensus::LLMQType> : std::true_type {};
+template<> struct is_serializable_enum<uint8_t> : std::true_type {};
 
 #endif // BITCOIN_CONSENSUS_PARAMS_H
