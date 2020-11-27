@@ -316,14 +316,14 @@ public:
     //! whether transaction is a coinbase
     bool fCoinBase;
 
-    //! whether transaction is a coinstake
-    bool fCoinStake;
-
     //! unspent transaction outputs; spent outputs are .IsNull(); spent outputs at the end of the array are dropped
     std::vector<CTxOut> vout;
 
     //! at which height this transaction was included in the active block chain
     int nHeight;
+
+    // peercoin: whether transaction is a coinstake
+    bool fCoinStake;
 
     //! empty constructor
     CCoins() : fCoinBase(false), vout(0), nHeight(0) { }
