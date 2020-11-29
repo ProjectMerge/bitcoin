@@ -15,6 +15,10 @@
 
 CStake stake;
 
+//! performance indicators
+extern int cacheHit;
+extern int cacheMiss;
+
 typedef std::vector<unsigned char> valtype;
 bool CStake::SelectStakeCoins(std::set<std::pair<const CWalletTx*, unsigned int>>& setCoins, CAmount nTargetAmount) const
 {
@@ -144,11 +148,16 @@ bool CStake::CreateCoinStake(unsigned int nBits, CMutableTransaction& txNew, uns
     std::unique_ptr<SigningProvider> provider;
     std::vector<std::pair<const CWalletTx*, unsigned int>> vwtxPrev;
 
+    //! benchmarking variables
+    unsigned int nTries = 0;
+    auto s0 = GetTimeMillis();
+
     for (const auto& pcoin : setStakeCoins) {
         // Read block header
         CBlockIndex* blockIndex = LookupBlockIndex(pcoin.first->m_confirm.hashBlock);
         CBlockHeader block = blockIndex->GetBlockHeader();
 
+        nTries++;
         bool fKernelFound = false;
         uint256 hashProofOfStake = uint256();
         COutPoint prevoutStake = COutPoint(pcoin.first->GetHash(), pcoin.second);
@@ -211,6 +220,10 @@ bool CStake::CreateCoinStake(unsigned int nBits, CMutableTransaction& txNew, uns
                 break;
         }
     }
+
+    auto s1 = GetTimeMillis();
+    auto timetaken = s1 - s0;
+    LogPrintf("%s - took %dms to iterate %d inputs (%d hit %d miss)\n", __func__, timetaken, nTries, cacheHit, cacheMiss);
 
     if (nCredit == 0 || nCredit > nBalance)
         return false;
