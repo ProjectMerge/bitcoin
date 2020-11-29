@@ -186,6 +186,7 @@ BITCOIN_CORE_H = \
   policy/policy.h \
   policy/rbf.h \
   policy/settings.h \
+  pos/cache.h \
   pos/kernel.h \
   pow.h \
   protocol.h \
@@ -328,6 +329,7 @@ libmerge_server_a_SOURCES = \
   policy/fees.cpp \
   policy/rbf.cpp \
   policy/settings.cpp \
+  pos/cache.cpp \
   pos/kernel.cpp \
   pow.cpp \
   rest.cpp \
@@ -712,6 +714,7 @@ CLEANFILES += compat/*.gcda compat/*.gcno
 CLEANFILES += consensus/*.gcda consensus/*.gcno
 CLEANFILES += crypto/*.gcda crypto/*.gcno
 CLEANFILES += policy/*.gcda policy/*.gcno
+CLEANFILES += pos/*.gcda pos/*.gcno
 CLEANFILES += primitives/*.gcda primitives/*.gcno
 CLEANFILES += script/*.gcda script/*.gcno
 CLEANFILES += support/*.gcda support/*.gcno

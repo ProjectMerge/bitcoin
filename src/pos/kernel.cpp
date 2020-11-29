@@ -11,6 +11,7 @@
 #include <db.h>
 #include <init.h>
 #include <policy/policy.h>
+#include <pos/cache.h>
 #include <pos/kernel.h>
 #include <script/interpreter.h>
 #include <timedata.h>
@@ -46,13 +47,13 @@ static bool GetLastStakeModifier(const CBlockIndex* pindex, uint64_t& nStakeModi
     return true;
 }
 
-static int64_t GetStakeModifierSelectionIntervalSection(int nSection)
+int64_t GetStakeModifierSelectionIntervalSection(int nSection)
 {
     assert(nSection >= 0 && nSection < 64);
     return getModifierInterval() * 63 / (63 + ((63 - nSection) * (MODIFIER_INTERVAL_RATIO - 1)));
 }
 
-static int64_t GetStakeModifierSelectionInterval()
+int64_t GetStakeModifierSelectionInterval()
 {
     int64_t nSelectionInterval = 0;
     for (int nSection = 0; nSection < 64; nSection++) {
@@ -288,7 +289,7 @@ bool CheckStakeKernelHash(unsigned int nBits, const CBlock blockFrom, const CTra
     int nStakeModifierHeight = 0;
     int64_t nStakeModifierTime = 0;
 
-    if (!GetKernelStakeModifier(blockFrom.GetHash(), nStakeModifier, nStakeModifierHeight, nStakeModifierTime, fPrintProofOfStake)) {
+    if (!GetSmartstakeModifier(blockFrom.GetHash(), nStakeModifier, nStakeModifierHeight, nStakeModifierTime)) {
         LogPrintf("CheckStakeKernelHash(): failed to get kernel stake modifier \n");
         return false;
     }

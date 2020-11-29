@@ -38,6 +38,7 @@
 #include <policy/fees.h>
 #include <policy/policy.h>
 #include <policy/settings.h>
+#include <pos/cache.h>
 #include <rpc/blockchain.h>
 #include <rpc/register.h>
 #include <rpc/server.h>
@@ -1947,6 +1948,7 @@ bool AppInitMain(NodeContext& node)
     }, DUMP_BANS_INTERVAL);
 
     if(!fMasternode && gArgs.GetBoolArg("-staking", true)) {
+        InitSmartstakeCache();
         threadGroup.create_thread(boost::bind(&ThreadStakeMinter, boost::ref(chainparams), boost::ref(*g_rpc_node->connman)));
     }
 
