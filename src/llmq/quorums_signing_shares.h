@@ -84,15 +84,13 @@ public:
     uint256 id;
     uint256 msgHash;
 
-    ADD_SERIALIZE_METHODS
-
-    template<typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action) {
-        READWRITE(VARINT(sessionId));
-        READWRITE(llmqType);
-        READWRITE(quorumHash);
-        READWRITE(id);
-        READWRITE(msgHash);
+    SERIALIZE_METHODS(CSigSesAnn, obj)
+    {
+        READWRITE(VARINT(obj.sessionId));
+        READWRITE(obj.llmqType);
+        READWRITE(obj.quorumHash);
+        READWRITE(obj.id);
+        READWRITE(obj.msgHash);
     }
 
     std::string ToString() const;
@@ -105,16 +103,12 @@ public:
     std::vector<bool> inv;
 
 public:
-    ADD_SERIALIZE_METHODS
-
-    template<typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
+    SERIALIZE_METHODS(CSigSharesInv, obj)
     {
-        uint64_t invSize = inv.size();
-
-        READWRITE(VARINT(sessionId));
+        uint64_t invSize = obj.inv.size();
+        READWRITE(VARINT(obj.sessionId));
         READWRITE(COMPACTSIZE(invSize));
-        READWRITE(AUTOBITSET(inv, (size_t)invSize));
+        READWRITE(AUTOBITSET(obj.inv, (size_t)invSize));
     }
 
     void Init(size_t size);
@@ -135,13 +129,10 @@ public:
     std::vector<std::pair<uint16_t, CBLSLazySignature>> sigShares;
 
 public:
-    ADD_SERIALIZE_METHODS;
-
-    template<typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
+    SERIALIZE_METHODS(CBatchedSigShares, obj)
     {
-        READWRITE(VARINT(sessionId));
-        READWRITE(sigShares);
+        READWRITE(VARINT(obj.sessionId));
+        READWRITE(obj.sigShares);
     }
 
     std::string ToInvString() const;
