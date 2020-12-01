@@ -297,6 +297,7 @@ void CMasternodeSync::UpdatedBlockTip(const CBlockIndex *pindexNew, bool fInitia
 void CMasternodeSync::DoMaintenance(CConnman &connman)
 {
     if (ShutdownRequested()) return;
+    if (::ChainstateActive().IsInitialBlockDownload()) return;
 
     ProcessTick(connman);
 }
