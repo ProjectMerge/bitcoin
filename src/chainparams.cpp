@@ -352,9 +352,9 @@ public:
 
         //! dip activation heights
         consensus.DIP0003Height = 250;
-        consensus.DIP0003EnforcementHeight = 1500;
+        consensus.DIP0003EnforcementHeight = 500;
         consensus.DIP0003EnforcementHash = uint256S("0000000000000000000000000000000000000000000000000000000000000000");
-        consensus.DIP0008Height = 3000;
+        consensus.DIP0008Height = 750;
 
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].bit = 28;
         consensus.vDeployments[Consensus::DEPLOYMENT_TESTDUMMY].nStartTime = 1199145601; // January 1, 2008
