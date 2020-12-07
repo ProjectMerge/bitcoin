@@ -405,6 +405,19 @@ public:
         }
         return false;
     }
+
+    bool IsEvoTx() const
+    {
+        if (nVersion < 3) return false;
+        auto txType = nType;
+        if (txType == TRANSACTION_PROVIDER_REGISTER ||
+            txType == TRANSACTION_PROVIDER_UPDATE_SERVICE ||
+            txType == TRANSACTION_PROVIDER_UPDATE_REGISTRAR ||
+            txType == TRANSACTION_PROVIDER_UPDATE_REVOKE ||
+            txType == TRANSACTION_QUORUM_COMMITMENT)
+            return true;
+        return false;
+    }
 };
 
 /** A mutable version of CTransaction. */

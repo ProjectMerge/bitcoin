@@ -227,14 +227,12 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
 
     LogPrintf("CreateNewBlock(): total weight %u txs: %u fees: %ld sigopscost %d\n", nBlockWeight, nBlockTx, nFees, nBlockSigOpsCost);
 
-    if (!fDIP0003Active_context) {
-        coinbaseTx.vin[0].scriptSig = CScript() << nHeight << OP_0;
-    } else {
-        coinbaseTx.vin[0].scriptSig = CScript() << OP_RETURN;
+    coinbaseTx.vin[0].scriptSig = CScript() << nHeight << OP_0;
+
+    if (fDIP0003Active_context) {
 
         coinbaseTx.nVersion = 3;
-        coinbaseTx.nType = fProofOfStake ? TRANSACTION_COINSTAKE : TRANSACTION_COINBASE;
-
+        coinbaseTx.nType = TRANSACTION_COINBASE;
         CCbTx cbTx;
 
         if (fDIP0008Active_context) {
