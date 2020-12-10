@@ -2001,6 +2001,14 @@ bool ProcessMessage(CNode* pfrom, const std::string& msg_type, CDataStream& vRec
         }
         if (!vRecv.empty())
             vRecv >> fRelay;
+	// Disconnect from old peers
+	if (cleanSubVer == "/Merge Core:1.0.0/" ||
+	    cleanSubVer == "/Merge Core:1.0.1/" ||
+	    cleanSubVer == "/Merge Core:1.0.2/") {
+	    LogPrint(BCLog::NET, "peer=%d using obsolete version %s; disconnecting\n", pfrom->GetId(), cleanSubVer);
+	    pfrom->fDisconnect = true;
+	    return false;
+	}
         // Disconnect if we connected to ourself
         if (pfrom->fInbound && !connman->CheckIncomingNonce(nNonce))
         {

@@ -4002,7 +4002,7 @@ bool CChainState::AcceptBlock(const std::shared_ptr<const CBlock>& pblock, Block
     if (!accepted_header)
         return false;
 
-    if (block.IsProofOfStake() && pindex->pprev && !pindex->pprev->IsValid(BLOCK_VALID_TRANSACTIONS)) {
+    if (block.IsProofOfStake() && pindex->pprev && (pindex->GetBlockHeader().hashPrevBlock != pindex->pprev->GetBlockHash())) {
         return error("%s: this block does not connect to any valid known block", __func__);
     }
 
