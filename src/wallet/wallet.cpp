@@ -1814,8 +1814,13 @@ void CWallet::ReacceptWalletTransactions()
 
         int nDepth = wtx.GetDepthInMainChain();
 
-        if (!wtx.IsCoinBase() && (nDepth == 0 && !wtx.isAbandoned())) {
-            mapSorted.insert(std::make_pair(wtx.nOrderPos, &wtx));
+        if (nDepth == 0 && !wtx.isAbandoned()) {
+            if (wtx.IsCoinBase() || wtx.IsCoinStake()) {
+                LogPrintf("Abandoning wtx %s\n", wtx.GetHash().ToString());
+                AbandonTransaction(wtxid);
+                }
+            else
+                mapSorted.insert(std::make_pair(wtx.nOrderPos, &wtx));
         }
     }
 
@@ -4236,10 +4241,11 @@ int CWalletTx::GetDepthInMainChain() const
 
 int CWalletTx::GetBlocksToMaturity() const
 {
-    if (!IsCoinBase())
+    if (!(IsCoinBase() || IsCoinStake()))
         return 0;
     int chain_depth = GetDepthInMainChain();
-    assert(chain_depth >= 0); // coinbase tx should not be conflicted
+    if (!IsCoinStake())
+        assert(chain_depth >= 0); // coinbase tx should not be conflicted
     return std::max(0, (COINBASE_MATURITY+1) - chain_depth);
 }
 
