@@ -21,7 +21,7 @@ CMasternodeSync masternodeSync;
 
 void CMasternodeSync::Reset()
 {
-    nCurrentAsset = MASTERNODE_SYNC_INITIAL;
+    nCurrentAsset = MASTERNODE_SYNC_FINISHED;
     nTriedPeerCount = 0;
     nTimeAssetSyncStarted = GetTime();
     nTimeLastBumped = GetTime();
