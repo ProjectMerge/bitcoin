@@ -3911,10 +3911,7 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
 
             if (pto->m_tx_relay != nullptr) {
                 LOCK(pto->m_tx_relay->cs_tx_inventory);
-                // Check whether periodic sends should happen
-                bool fSendTrickle = pto->HasPermission(PF_NOBAN);
                 if (pto->m_tx_relay->nNextInvSend < current_time) {
-                    fSendTrickle = true;
                     if (pto->fInbound) {
                         pto->m_tx_relay->nNextInvSend = std::chrono::microseconds{connman->PoissonNextSendInbound(nNow, INVENTORY_BROADCAST_INTERVAL)};
                     } else {
@@ -3924,13 +3921,13 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
                 }
 
                 // Time to send but the peer has requested we not relay transactions.
-                if (fSendTrickle) {
+                {
                     LOCK(pto->m_tx_relay->cs_filter);
                     if (!pto->m_tx_relay->fRelayTxes) pto->m_tx_relay->setInventoryTxToSend.clear();
                 }
 
                 // Respond to BIP35 mempool requests
-                if (fSendTrickle && pto->m_tx_relay->fSendMempool) {
+                if (pto->m_tx_relay->fSendMempool) {
                     auto vtxinfo = m_mempool.infoAll();
                     pto->m_tx_relay->fSendMempool = false;
                     CFeeRate filterrate;
@@ -3963,7 +3960,7 @@ bool PeerLogicValidation::SendMessages(CNode* pto)
                 }
 
                 // Determine transactions to relay
-                if (fSendTrickle) {
+                {
                     // Produce a vector with all candidates for sending
                     std::vector<std::set<uint256>::iterator> vInvTx;
                     vInvTx.reserve(pto->m_tx_relay->setInventoryTxToSend.size());
