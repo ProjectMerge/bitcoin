@@ -49,38 +49,17 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const interface
     uint256 hash = wtx.tx->GetHash();
     std::map<std::string, std::string> mapValue = wtx.value_map;
 
-    if(wtx.tx->IsCoinStake())
+    if (wtx.is_coinstake) // peercoin: coinstake transaction
     {
-        TransactionRecord sub(hash, nTime);
+        TransactionRecord sub(hash, nTime, TransactionRecord::StakeMint, "", -nDebit, wtx.tx->GetValueOut());
         CTxDestination address;
-        if (!ExtractDestination(wtx.tx->vout[1].scriptPubKey, address))
-            return parts;
+        const CTxOut& txout = wtx.tx->vout[1];
+        isminetype mine = wtx.txout_is_mine[1];
 
-        if (!wtx.txout_is_mine[1])
-        {
-                for (unsigned int i = 1; i < wtx.tx->vout.size(); i++) {
-                    CTxDestination outAddress;
-                    if (ExtractDestination(wtx.tx->vout[i].scriptPubKey, outAddress)) {
-                        isminetype mine = wtx.txout_is_mine[i];
-                        if (mine) {
-                            sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
-                            sub.type = TransactionRecord::MNReward;
-                            sub.address = EncodeDestination(outAddress);
-                            sub.credit = wtx.tx->vout[i].nValue;
-                        }
-                    }
-                }
-        }
-        else
-        {
-            //stake reward
-            isminetype mine = wtx.txout_is_mine[1];
-            sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
+        if(ExtractDestination(txout.scriptPubKey, address) && wtx.txout_address_is_mine[1])
             sub.address = EncodeDestination(address);
-            sub.credit = nCredit - nDebit;
-            sub.type = TransactionRecord::StakeMint;
 
-        }
+        sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
         parts.append(sub);
     }
     else if (nNet > 0 || wtx.is_coinbase)
