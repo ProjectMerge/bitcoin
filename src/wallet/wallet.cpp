@@ -723,33 +723,25 @@ void CWallet::MarkDirty()
     }
 }
 
-bool CWallet::MarkReplaced(const uint256& originalHash, const uint256& newHash)
+void CWallet::WalletUpdateSpent(const CTransactionRef &tx)
 {
-    LOCK(cs_wallet);
-
-    auto mi = mapWallet.find(originalHash);
-
-    // There is a bug if MarkReplaced is not called on an existing wallet transaction.
-    assert(mi != mapWallet.end());
-
-    CWalletTx& wtx = (*mi).second;
-
-    // Ensure for now that we're not overwriting data
-    assert(wtx.mapValue.count("replaced_by_txid") == 0);
-
-    wtx.mapValue["replaced_by_txid"] = newHash.ToString();
-
-    WalletBatch batch(*database, "r+");
-
-    bool success = true;
-    if (!batch.WriteTx(wtx)) {
-        WalletLogPrintf("%s: Updating batch tx %s failed\n", __func__, wtx.GetHash().ToString());
-        success = false;
+    {
+        LOCK(cs_wallet);
+        for (const CTxIn& txin : tx->vin) {
+            auto mi = mapWallet.find(txin.prevout.hash);
+            if (mi != mapWallet.end()) {
+                CWalletTx& wtx = (*mi).second;
+                if (txin.prevout.n >= wtx.tx->vout.size())
+                    LogPrintf("WalletUpdateSpent: bad wtx %s\n", wtx.GetHash().ToString().c_str());
+                else if (IsMine(wtx.tx->vout[txin.prevout.n]))
+                {
+                    LogPrintf("WalletUpdateSpent found spent coin %sppc %s\n", FormatMoney(wtx.GetCredit(ISMINE_SPENDABLE)).c_str(), wtx.GetHash().ToString().c_str());
+                    wtx.BindWallet(this);
+                    NotifyTransactionChanged(this, txin.prevout.hash, CT_UPDATED);
+                }
+            }
+        }
     }
-
-    NotifyTransactionChanged(this, originalHash, CT_UPDATED);
-
-    return success;
 }
 
 void CWallet::SetSpentKeyState(WalletBatch& batch, const uint256& hash, unsigned int n, bool used, std::set<CTxDestination>& tx_destinations)
@@ -874,6 +866,9 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn, bool fFlushOnClose)
 
     // Break debit/credit balance caches:
     wtx.MarkDirty();
+
+    // since AddToWallet is called directly for self-originating transactions, check for consumption of own coins
+    WalletUpdateSpent(wtx.tx);
 
     // Notify UI of new or updated transaction
     NotifyTransactionChanged(this, hash, fInsertedNew ? CT_NEW : CT_UPDATED);
@@ -2117,6 +2112,8 @@ CWallet::Balance CWallet::GetBalance(const int min_depth, bool avoid_reuse) cons
                 ret.m_mine_untrusted_pending += tx_credit_mine;
                 ret.m_watchonly_untrusted_pending += tx_credit_watchonly;
             }
+            if (wtx.IsCoinStake())
+                ret.m_mine_stake += wtx.GetCredit(ISMINE_ALL);
             ret.m_mine_immature += wtx.GetImmatureCredit();
             ret.m_watchonly_immature += wtx.GetImmatureWatchOnlyCredit();
         }
