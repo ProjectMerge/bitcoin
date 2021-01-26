@@ -77,12 +77,12 @@ public:
     {
         Other,
         Generated,
-        StakeMint,
         SendToAddress,
         SendToOther,
         RecvWithAddress,
         RecvFromOther,
         SendToSelf,
+        StakeMint,
         MNReward
     };
 
