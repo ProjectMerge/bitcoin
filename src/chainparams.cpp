@@ -190,22 +190,22 @@ public:
         consensus.CSVHeight = std::numeric_limits<int>::max();
         consensus.SegwitHeight = std::numeric_limits<int>::max();
         consensus.MinBIP9WarningHeight = std::numeric_limits<int>::max();
-        consensus.powLimit = uint256S("00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+        consensus.powLimit = uint256S("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
         consensus.nPowTargetTimespan = 10 * 60;
-        consensus.nPowTargetSpacing =  1 * 60;
+        consensus.nPowTargetSpacing =  15;
         consensus.fPowAllowMinDifficultyBlocks = false;
         consensus.fPowNoRetargeting = false;
-        consensus.nLastPoWBlock = 300;
+        consensus.nLastPoWBlock = 125;
         consensus.nMaxReorganizationDepth = 100;
         consensus.nRuleChangeActivationThreshold = 1916;
         consensus.nMinerConfirmationWindow = 2016;
 
         //! proof of stake / masternode variables
-        consensus.posLimit = uint256S("000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
-        consensus.nMinStakeAge = 60 * 60;
+        consensus.posLimit = consensus.powLimit;
+        consensus.nMinStakeAge = 5 * 60;
         consensus.nMaxHashDrift = 45;
-        consensus.nPosTargetSpacing = consensus.nPowTargetSpacing;
-        consensus.nPosTargetTimespan = consensus.nPowTargetTimespan;
+        consensus.nPosTargetSpacing = 15;
+        consensus.nPosTargetTimespan = 90;
         consensus.nModifierInterval = 60;
         consensus.nModifierUpgradeBlock = 50;
         consensus.nMasternodeMinimumConfirmations = 15;
@@ -226,10 +226,8 @@ public:
         m_assumed_blockchain_size = 1;
         m_assumed_chain_state_size = 1;
 
-        genesis = CreateGenesisBlock(1596132246, 1543987, 0x1e0ffff0, 1, 0 * COIN, true);
+        genesis = CreateGenesisBlock(1596132246, 1, 0x207fffff, 1, 0 * COIN, true);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256S("0x000006720fa94c5b23d310b886feecccd14cd7465e0b2bb41651afa1c81498a0"));
-        assert(genesis.hashMerkleRoot == uint256S("0x705ea6c69f9003f9f45e9e02f8d541a98a0edd231de7e1a25b937a5b21085096"));
 
         vFixedSeeds.clear();
         vSeeds.clear();

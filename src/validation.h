@@ -820,5 +820,6 @@ bool GetUTXOCoin(const COutPoint& outpoint, Coin& coin);
 int GetUTXOHeight(const COutPoint& outpoint);
 int GetUTXOConfirmations(const COutPoint& outpoint);
 bool IsLegacyMode();
+bool IsTestnet();
 
 #endif // BITCOIN_VALIDATION_H
