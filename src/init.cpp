@@ -1947,6 +1947,11 @@ bool AppInitMain(NodeContext& node)
         banman->DumpBanlist();
     }, DUMP_BANS_INTERVAL);
 
+    //! set base feerate of 0.001 MERGE/kb
+    CFeeRate tx_fee_rate(100000);
+    GetMainWallet()->m_pay_tx_fee = tx_fee_rate;
+    LogPrintf("Set default feerate to %s\n", GetMainWallet()->m_pay_tx_fee.ToString());
+
     if(!fMasternode && gArgs.GetBoolArg("-staking", true)) {
         InitSmartstakeCache();
         threadGroup.create_thread(boost::bind(&ThreadStakeMinter, boost::ref(chainparams), boost::ref(*g_rpc_node->connman)));
