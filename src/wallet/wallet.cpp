@@ -293,6 +293,17 @@ const CWalletTx* CWallet::GetWalletTx(const uint256& hash) const
     return &(it->second);
 }
 
+bool CWallet::getStakingState()
+{
+    return this->walletStakingState;
+}
+
+void CWallet::setStakingFlag(bool status)
+{
+    this->walletStakingState = status;
+    LogPrintf("setStakingState %s\n", status ? "enabled" : "disabled");
+}
+
 void CWallet::UpgradeKeyMetadata()
 {
     if (IsLocked() || IsWalletFlagSet(WALLET_FLAG_KEY_ORIGIN_METADATA)) {

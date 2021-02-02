@@ -678,8 +678,9 @@ void ThreadStakeMinter(const CChainParams &chainparams, CConnman &connman)
     if (!gArgs.GetBoolArg("-staking", true))
         return;
     LogPrintf("ThreadStakeMinter started\n");
+    auto pwalletMain = GetMainWallet();
     try {
-        auto pwalletMain = GetMainWallet();
+        pwalletMain->setStakingFlag(true);
         BitcoinMiner(chainparams, connman, pwalletMain.get(), true);
         boost::this_thread::interruption_point();
     } catch (std::exception& e) {
@@ -687,4 +688,5 @@ void ThreadStakeMinter(const CChainParams &chainparams, CConnman &connman)
     } catch (...) {
         LogPrintf("ThreadStakeMinter() error \n");
     }
+    pwalletMain->setStakingFlag(false);
 }

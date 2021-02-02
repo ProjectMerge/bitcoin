@@ -673,8 +673,9 @@ class CWallet final : public WalletStorage, public interfaces::Chain::Notificati
 private:
     CKeyingMaterial vMasterKey GUARDED_BY(cs_wallet);
 
-
     bool Unlock(const CKeyingMaterial& vMasterKeyIn, bool accept_no_keys = false);
+
+    std::atomic<bool> walletStakingState{false};
 
     std::atomic<bool> fAbortRescan{false};
     std::atomic<bool> fScanningWallet{false}; // controlled by WalletRescanReserver
@@ -780,6 +781,10 @@ public:
      * This lock protects all the fields added by CWallet.
      */
     mutable RecursiveMutex cs_wallet;
+
+    //! staking state
+    bool getStakingState();
+    void setStakingFlag(bool status);
 
     /** Get database handle used by this wallet. Ideally this function would
      * not be necessary.

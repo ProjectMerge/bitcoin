@@ -5,8 +5,10 @@
 
 #include <wallet/db.h>
 
+#include <miner.h>
 #include <util/strencodings.h>
 #include <util/translation.h>
+#include <wallet/wallet.h>
 
 #include <stdint.h>
 
@@ -594,8 +596,13 @@ BerkeleyBatch::BerkeleyBatch(BerkeleyDatabase& database, const char* pszMode, bo
 
 void BerkeleyBatch::Flush()
 {
-    if (activeTxn)
+    if (activeTxn) {
         return;
+    }
+    if (GetMainWallet() && GetMainWallet()->getStakingState()) {
+        LogPrintf("%s - not flushing walletDb whilst staking..\n", __func__);
+        return;
+    }
 
     // Flush database activity from memory pool to disk log
     unsigned int nMinutes = 0;
@@ -807,6 +814,11 @@ bool BerkeleyBatch::PeriodicFlush(BerkeleyDatabase& database)
     if (database.IsDummy()) {
         return true;
     }
+    if (GetMainWallet() && GetMainWallet()->getStakingState()) {
+        LogPrintf("%s - not flushing walletDb whilst staking..\n", __func__);
+        return true;
+    }
+
     bool ret = false;
     BerkeleyEnvironment *env = database.env.get();
     const std::string& strFile = database.strFile;
